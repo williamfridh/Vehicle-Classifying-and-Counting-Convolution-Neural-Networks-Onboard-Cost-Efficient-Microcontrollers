@@ -3,3 +3,6 @@
 *.identifier
 *.Identifier
 *.wav
+=======
+*.vscode*
+
