@@ -5,7 +5,7 @@
 #include <vector>
 
 // Function prototypes
-std::string makeMfcc(std::string audio_source, int sr);
+std::string makeMfcc(std::string audio_source);
 
 std::string mfccToString(std::vector<std::vector<float>> mfcc_matrix);
 
