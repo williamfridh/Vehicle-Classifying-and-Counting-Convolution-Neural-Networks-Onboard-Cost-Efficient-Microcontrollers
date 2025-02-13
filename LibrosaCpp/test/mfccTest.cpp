@@ -16,15 +16,11 @@
 * -------------------------------------------------------------------
 */
 
-
 #include "wavreader.h"
 #include <librosa/librosa.h>
 
 #include <iostream>
 #include <vector>
-#include <iomanip>
-#include <stdio.h>
-
 
 #include <chrono>
 #include <numeric>
@@ -32,7 +28,8 @@
 
 using namespace std;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
   void* h_x = wav_read_open("samples/p225_002.wav");
 
   int format, channels, sr, bits_per_sample;
@@ -60,58 +57,20 @@ int main(int argc, char* argv[]) {
 
   std::cout << "Sample rate: " << sr << "Hz" << std::endl;
   
+
   int n_fft = 400;
   int n_hop = 160;
   int n_mel = 40;
   int fmin = 80;
   int fmax = 7600;
 
-  /*
+  
   auto melspectrogram_start_time =  std::chrono::system_clock::now();
   std::vector<std::vector<float>> mels = librosa::Feature::melspectrogram(x, sr, n_fft, n_hop, "hann", true, "reflect", 2.f, n_mel, fmin, fmax);
   auto melspectrogram_end_time =  std::chrono::system_clock::now();
   auto melspectrogram_duration = std::chrono::duration_cast<std::chrono::milliseconds>(melspectrogram_end_time - melspectrogram_start_time);
   std::cout<<"Melspectrogram runing time is "<< melspectrogram_duration.count() << "ms" <<std::endl;
   
-  assert(!mels.empty());
-  std::cout<<"Verify the energy of melspectrogram features:"<<std::endl;
-  std::cout<<"mel.dims: ["<<mels.size()<<","<<mels[0].size()<<"]"<<std::endl;
-  std::cout<<"reduce_sum_in_times: "<<"[ ";
-  for(int i = 0 ; i < mels.size(); i ++) {
-	  float sum = std::accumulate(mels[i].begin(), mels[i].end(), 0.f, [](float& a, float& b) { return a+b;});
-	  std::cout<<sum;
-	  std::cout<<" ";
-  }
-  std::cout<<"]"<<std::endl;
-  */
-
-  
-  // norm = false, might want to try true.
-  bool norm = false;
-  // 13 mel bands will be used, aswells as number of mfcc's
-  int n_mfcc = 13;
-  int n_mels = 13;
-  // Type 2
-  int type = 2;
-
-  std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, "reflect", 2.f, n_mels, fmin, fmax, n_mfcc, norm, type);
-  
-
-  std::cout << "[";
-  for (size_t i = 0; i < mfcc_matrix.size(); i++) {
-      std::cout << "[";
-      for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
-          std::cout << mfcc_matrix[i][j];
-          if (j != mfcc_matrix[i].size() - 1) {
-              std::cout << ", ";  // Add a comma between elements
-          }
-      }
-      std::cout << "]";
-      if (i != mfcc_matrix.size() - 1) {
-          std::cout << ", ";  // Add a comma between rows
-      }
-  }
-  std::cout << "]" << std::endl;
 
   return 0;
 }

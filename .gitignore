@@ -2,4 +2,6 @@
 *.o
 *.identifier
 *.Identifier
+*.wav
 *.vscode*
+
