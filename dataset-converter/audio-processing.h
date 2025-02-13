@@ -35,15 +35,5 @@ float computeRMS(const std::vector<float>& audio);
  */
 std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS = 0.1);
 
-/**
- * Convert stereo audio to mono.
- * 
- * This function converts stereo audio to mono by averaging the left and right channels.
- * 
- * @param audio: Stereo audio data
- * @return: Mono audio data
- */
-std::vector<float> stereoToMono(const std::vector<float>& audio);
-
 #endif // AUDIO_PROCESSING_H
 

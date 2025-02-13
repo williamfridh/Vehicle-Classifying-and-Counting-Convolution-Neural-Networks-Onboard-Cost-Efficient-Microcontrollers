@@ -80,24 +80,3 @@ std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS
     return normalizedAudio;
 }
 
-/**
- * Convert stereo audio to mono.
- * 
- * This function converts stereo audio to mono by averaging the left and right channels.
- * 
- * @param audio: Stereo audio data
- * @return: Mono audio data
- */
-std::vector<float> stereoToMono(const std::vector<float>& audio) {
-    if (audio.size() % 2 != 0) {
-        std::cerr << "Warning: Stereo audio size is not even." << std::endl;
-    }
-
-    std::vector<float> mono(audio.size() / 2);
-    for (size_t i = 0; i < audio.size(); i += 2) {
-        mono[i / 2] = (audio[i] + audio[i + 1]) / 2;
-    }
-
-    return mono;
-}
-
