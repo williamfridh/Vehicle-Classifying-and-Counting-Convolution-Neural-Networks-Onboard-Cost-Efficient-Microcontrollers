@@ -7,6 +7,13 @@
  * then travels Y seconds and takes the next X seconds and so on. This is done to create
  * a dataset of overlaping segments of audio files.
  * 
+ * Audio processing is done using the libsndfile and libsamplerate libraries.
+ * 
+ * This code does the following to audio files:
+ * 1. Resamples the audio to a target sample rate.
+ * 2. Normalizes the audio to a target RMS value.
+ * 3. Applies pre-emphasis to the audio.
+ * 
  */
 
 #include <iostream>
@@ -16,10 +23,36 @@
 #include <cmath>
 #include <sndfile.h>
 #include <samplerate.h>
+#include "audio-processing.h"
 
 namespace fs = std::filesystem;
 
 static const std::string ALLOWED_FILE_EXTENSIONS[] = {".wav", ".mp3", ".flac", ".ogg"};
+
+/**
+ * Audio Framing.
+ * 
+ * This function takes audio data and frames it into segments of a given size,
+ * with a given overlap.
+ * 
+ * @param audio: Audio data
+ * @param frameSize: Size of each frame
+ * @param overlap: Overlap between frames
+ * @param outputPath: Path of the output folder where the framed files will be stored
+ * @return: None
+ */
+std::vector<std::vector<double>> frameSignal(const std::vector<double>& audio, int frameSize, int overlap) {
+    std::vector<std::vector<double>> frames;
+
+    // Step through signal with stride (frameSize - overlap)
+    for (size_t i = 0; i + frameSize <= audio.size(); i += (frameSize - overlap)) {
+        // Extract frame from signal
+        std::vector<double> frame(audio.begin() + i, audio.begin() + i + frameSize);
+        frames.push_back(frame);
+    }
+
+    return frames;
+}
 
 /**
  * Resample Audio.
@@ -57,55 +90,6 @@ std::vector<float> resampleAudio(const std::vector<float>& inputAudio, int input
     }
 
     return outputAudio;
-}
-
-
-/**
- * Compute RMS.
- * 
- * This function computes the Root Mean Square (RMS) of the audio data.
- * 
- * @param audio: Audio data
- * @return: RMS value of the audio data
- */
-float computeRMS(const std::vector<float>& audio) {
-    float sum = 0.0;
-    for (float sample : audio) {
-        sum += sample * sample;
-    }
-    return sqrt(sum / audio.size());
-}
-
-/**
- * RMS Normalize.
- * 
- * This function normalizes the audio data to a target RMS value.
- * 
- * @param audio: Audio data
- * @param targetRMS: Target RMS value (default: 0.1)
- * @return: Normalized audio data
- */
-std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS = 0.1) {
-
-    if (targetRMS < 0.1 || targetRMS > 0.3) {
-        std::cerr << "Warning: Target RMS value should be between 0.1 and 0.3" << std::endl;
-    }
-
-    float currentRMS = computeRMS(audio);
-    
-    // Prevent division by zero
-    if (currentRMS < 1e-8) {
-        return audio; // Return original audio if the RMS is too small
-    }
-
-    float gain = targetRMS / currentRMS;
-    
-    std::vector<float> normalizedAudio(audio.size());
-    for (size_t i = 0; i < audio.size(); i++) {
-        normalizedAudio[i] = audio[i] * gain;
-    }
-    
-    return normalizedAudio;
 }
 
 /**
@@ -175,9 +159,12 @@ void writeWavFile(const std::string& filename, const std::vector<float>& audio, 
  * @param filePath: Path of the file to be processed
  * @param outputPath: Path of the output folder where the processed files will be stored
  * @param targetSampleRate: Target sample rate for resampling
+ * @param preEmphasisAlpha: Pre-emphasis coefficient
+ * @param frameSize: Size of each frame
+ * @param overlap: Overlap between frames
  * @return: 0 if successful, 1 if error occurs during processing
  */
-int processFile (std::string filePath, std::string outputPath, int targetSampleRate) {
+int processFile (std::string filePath, std::string outputPath, int targetSampleRate, double preEmphasisAlpha, int frameSize, int overlap) {
     // Note that no checking for file existence is done here
     // as it is assumed that the file exists.
 
@@ -199,11 +186,12 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     int sampleRate;
     std::vector<float> audioData = readWavFile(filePath, sampleRate);
     // Send for pre-processing
-    audioData = rmsNormalize(audioData, 0.2);
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate);
+    audioData = rmsNormalize(audioData, 0.2);
+    audioData = preEmphasis(audioData, preEmphasisAlpha);
     // Write file at new path
     std::string newFilePath = outputPath + "/" + filePath;
-    writeWavFile(newFilePath, audioData, sampleRate, 1);
+    writeWavFile(newFilePath, audioData, targetSampleRate, 1);
     // Return
     return 0;
 }
@@ -218,9 +206,12 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
  * @param sourcePath: Path of the folder to be iterated
  * @param outputPath: Path of the output folder where the processed files will be stored
  * @param targetSampleRate: Target sample rate for resampling
+ * @param preEmphasisAlpha: Pre-emphasis coefficient
+ * @param frameSize: Size of each frame
+ * @param overlap: Overlap between frames
  * @return: 0 if successful, 1 if error occurs during processing
  */
-int iterateFolder (std::string sourcePath, std::string outputPath, int targetSampleRate) {
+int iterateFolder (std::string sourcePath, std::string outputPath, int targetSampleRate, double preEmphasisAlpha, int frameSize, int overlap) {
     // Check if folder exists
     if (!fs::exists(sourcePath)) {
         std::cerr << "Error: Folder does not exist." << std::endl;
@@ -231,10 +222,10 @@ int iterateFolder (std::string sourcePath, std::string outputPath, int targetSam
         // Check if it is a file
         if (fs::is_regular_file(entry.path())) {
             // Process file
-            processFile(entry.path(), outputPath, targetSampleRate);
+            processFile(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSize, overlap);
         } else if (fs::is_directory(entry.path())) {
             // Recurse
-            iterateFolder(entry.path(), outputPath, targetSampleRate);
+            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSize, overlap);
         }
     }
     // Return
@@ -257,12 +248,27 @@ int main (int argc, char *argv[]) {
     if (outputPath.empty()) outputPath = "processed";
 
     std::string targetSampleRate;
-    std::cout << "Target sample rate (default is '16000'): ";
+    std::cout << "Target sample rate (default is 16000): ";
     std::getline(std::cin, targetSampleRate);
     if (targetSampleRate.empty()) targetSampleRate = "16000";
 
+    std::string preEmphasisAlpha;
+    std::cout << "Pre-emphasis alpha (default is 0.97): ";
+    std::getline(std::cin, preEmphasisAlpha);
+    if (preEmphasisAlpha.empty()) preEmphasisAlpha = "0.97";
+
+    std::string frameSize;
+    std::cout << "Frame size (default is 400): ";
+    std::getline(std::cin, frameSize);
+    if (frameSize.empty()) frameSize = "400";
+
+    std::string overlap;
+    std::cout << "Overlap (default is 160): ";
+    std::getline(std::cin, overlap);
+    if (overlap.empty()) overlap = "160";
+
     // Itterate through the folder
-    iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate));
+    iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate), std::stod(preEmphasisAlpha), std::stoi(frameSize), std::stoi(overlap));
     // Return
     return 0;
 }
