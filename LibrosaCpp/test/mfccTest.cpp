@@ -16,8 +16,8 @@
 * -------------------------------------------------------------------
 */
 
-#include "C:\Users\Pontu\OneDrive\Skrivbord\lib\Vehicle-Classifying-and-Counting-Convolution-Neural-Networks-Onboard-Cost-Efficient-Microcontrollers\LibrosaCpp\test\wavreader.h"
-#include "C:\Users\Pontu\OneDrive\Skrivbord\lib\Vehicle-Classifying-and-Counting-Convolution-Neural-Networks-Onboard-Cost-Efficient-Microcontrollers\LibrosaCpp\librosa\librosa.h"
+#include "wavreader.h"
+#include <librosa/librosa.h>
 
 #include <iostream>
 #include <vector>
@@ -57,34 +57,20 @@ int main(int argc, char* argv[])
 
   std::cout << "Sample rate: " << sr << "Hz" << std::endl;
   
+
   int n_fft = 400;
   int n_hop = 160;
   int n_mel = 40;
   int fmin = 80;
   int fmax = 7600;
 
-  auto stft_start_time =  std::chrono::system_clock::now();
-  std::vector<std::vector<std::complex<float>>> X = librosa::Feature::stft(x, n_fft, n_hop, "hann", true, "reflect");
-  auto stft_end_time =  std::chrono::system_clock::now();
-  auto stft_duration = std::chrono::duration_cast<std::chrono::milliseconds>(stft_end_time - stft_start_time);
-  std::cout<<"STFT runing time is "<< stft_duration.count() << "ms" <<std::endl;
-
+  
   auto melspectrogram_start_time =  std::chrono::system_clock::now();
   std::vector<std::vector<float>> mels = librosa::Feature::melspectrogram(x, sr, n_fft, n_hop, "hann", true, "reflect", 2.f, n_mel, fmin, fmax);
   auto melspectrogram_end_time =  std::chrono::system_clock::now();
   auto melspectrogram_duration = std::chrono::duration_cast<std::chrono::milliseconds>(melspectrogram_end_time - melspectrogram_start_time);
   std::cout<<"Melspectrogram runing time is "<< melspectrogram_duration.count() << "ms" <<std::endl;
   
-  assert(!mels.empty());
-  std::cout<<"Verify the energy of melspectrogram features:"<<std::endl;
-  std::cout<<"mel.dims: ["<<mels.size()<<","<<mels[0].size()<<"]"<<std::endl;
-  std::cout<<"reduce_sum_in_times: "<<"[ ";
-  for(int i = 0 ; i < mels.size(); i ++) {
-	  float sum = std::accumulate(mels[i].begin(), mels[i].end(), 0.f, [](float& a, float& b) { return a+b;});
-	  std::cout<<sum;
-	  std::cout<<" ";
-  }
-  std::cout<<"]"<<std::endl;
 
   return 0;
 }
