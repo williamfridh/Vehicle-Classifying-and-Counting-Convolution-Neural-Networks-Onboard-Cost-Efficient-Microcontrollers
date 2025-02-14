@@ -228,7 +228,7 @@ public:
   }
 
   /// \brief      compute mfcc similar with librosa.feature.mfcc
-  /// \param      x             input audio signal
+  /// \param      x             input audio signal(as a pure audio signal)
   /// \param      sr            sample rate of 'x'
   /// \param      n_fft         length of the FFT size
   /// \param      n_hop         number of samples between successive frames
@@ -243,7 +243,7 @@ public:
   /// \param      norm          ortho-normal dct basis
   /// \param      type          dct type. currently only supports 'type-II'
   /// \return     mfcc matrix
-  static std::vector<std::vector<float>> mfcc(std::vector<float> &x, int sr,
+  static std::vector<std::vector<float>> mfcc(std::vector<float> x, int sr,
                                               int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode,
                                               float power, int n_mels, int fmin, int fmax,
                                               int n_mfcc, bool norm, int type) {
