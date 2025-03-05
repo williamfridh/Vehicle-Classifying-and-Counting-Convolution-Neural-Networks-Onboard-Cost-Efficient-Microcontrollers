@@ -1,9 +1,10 @@
 CC = g++
-CFLAGS = -Wall -g -lsndfile -lsamplerate
-TARGET = dataset-converter
-SRC = dataset-converter.cc audio-processing.cc
+CFLAGS = -Wall -g -lsndfile -lsamplerate -I./ -O2
 
-all: $(TARGET)
+TARGET = dataset-converter
+SRC = dataset-converter.cc audio-processing.cc make-mfcc.cpp wavreader.c
+
+all: clean $(TARGET)
 
 $(TARGET): $(SRC)
 	$(CC) -o $(TARGET) $(SRC) $(CFLAGS)

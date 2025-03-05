@@ -18,6 +18,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -25,6 +26,8 @@
 #include <sndfile.h>
 #include <samplerate.h>
 #include "audio-processing.h"
+#include "make-mfcc.h"
+
 
 namespace fs = std::filesystem;
 
@@ -181,6 +184,59 @@ void writeWavFile(const std::string& filename, const std::vector<float>& audio, 
     sf_close(file);
 }
 
+
+
+/** 
+ * Creates a directory to host the txt frames
+ *
+ * @return: The name of the directory folder    
+*/
+
+void makeFrameDirectory(std::string dirName, std::string outerDir) {
+    // Making the path to which the txt file will be saved
+    // dirName in this case is the name of the directory where the data is gathered 
+    // Directory path is supposed to look like "resulting_frames/dirName"
+
+    fs::path dirPath = fs::path(outerDir) / dirName;
+
+
+    if (fs::exists(dirPath)) {
+        std::cout << "Directory already exists." << std::endl;
+    } else {
+        if (fs::create_directory(dirPath)) {
+            std::cout << "Directory created successfully!" << std::endl;
+        } else {
+            std::cout << "Failed to create directory." << std::endl;
+        }
+    }
+}
+
+/**
+ * Moves the frame txt files.
+ *
+ * @param txtFilePath: The file path in which to move the file
+ * @param destinationDir: The directory in which to move the file 
+ * @return: None
+*/
+void moveTxtFile(fs::path txtFilePath, fs::path destinationDir) {
+    fs::path sourcePath(txtFilePath);
+    fs::path destinationPath = fs::path(destinationDir) / destinationDir /sourcePath.filename();
+    try {
+        if (fs::exists(sourcePath)) {
+            fs::rename(sourcePath, destinationPath); // Move the file
+            std::cout << "File moved successfully to: " << destinationPath << std::endl;
+        } else {
+            std::cerr << "Source file does not exist: " << sourcePath << std::endl;
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error moving file: " << e.what() << std::endl;
+    }
+}
+
+
+
+
+
 /**
  * Process single file.
  * 
@@ -225,10 +281,58 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     audioData = preEmphasis(audioData, preEmphasisAlpha);
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
-    // Write new files
+    // Make a new directory and Write new files
+    std::string outerFrameTxtDirectory = "resulting_frames";
     for (size_t i = 0; i < frames.size(); ++i) {
-        std::string newFilePath = outputPath + "/" + filePath + "_" + std::to_string(i) + ".wav";
-        writeWavFile(newFilePath, frames[i], targetSampleRate, 1);
+        // Process each frame into a mfcc
+        std::vector<float> frame = frames[i]; 
+        std::string mfccString = makeMfcc(frame, sampleRate);
+        // Create name of the txt file, directory, and create the txt file
+        
+        fs::path pathObj(filePath);
+        std::string classifiName = "";
+
+        // Gets the name of the "classification name, or rather dataset/"secondDir"
+        auto it = pathObj.begin();
+        if (std::distance(pathObj.begin(), pathObj.end()) >= 2) {
+            std::advance(it, 1);  // Move iterator to the second directory
+            classifiName = it->string();
+            std::cout << "Second directory: " << classifiName << std::endl;
+        } else {
+            std::cout << "Path does not contain enough directories." << std::endl;
+        }
+
+        // Creates directory of classification name inside "resulting_frames" directory 
+        makeFrameDirectory(classifiName, outerFrameTxtDirectory);
+        
+        // Created txt file
+        fs::path audioFilePath(filePath);
+        std::string audioFileName = audioFilePath.stem().string();
+        fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
+        
+        fs::path outerDir = outerFrameTxtDirectory;  // Convert string to fs::path
+        fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
+
+        std::cout << "classifiName: " << classifiName << std::endl;
+        std::cout << "outerDir: " << outerDir << std::endl;
+        std::cout << "classifiDir: " << classifiDir << std::endl;
+        std::cout << "txtFilePath: " << txtFilePath << std::endl;
+
+        // "resulting_frames/filePath/audioFileName/_frame_number:i.txt"
+        
+        // Save data to the file 
+        std::ofstream outFile(txtFilePath);
+        if (outFile.is_open()) {
+            outFile << mfccString;
+            outFile.close();
+            std::cout << "Saved: " << filePath << std::endl;
+            moveTxtFile(txtFilePath, classifiDir);
+        } else {
+            std::cerr << "Error opening file: " << filePath << std::endl;
+        }
+
+        //std::string newFilePath = outputPath + "/" + filePath + "_" + std::to_string(i) + ".wav";
+        //writeWavFile(newFilePath, frames[i], targetSampleRate, 1);
     }
     // Print out amount of frames generated
     std::cout << "Frames generated: " << frames.size() << std::endl;
