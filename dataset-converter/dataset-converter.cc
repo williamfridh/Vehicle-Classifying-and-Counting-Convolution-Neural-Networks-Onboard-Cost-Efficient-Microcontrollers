@@ -197,16 +197,27 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
     // dirName in this case is the name of the directory where the data is gathered 
     // Directory path is supposed to look like "resulting_frames/dirName"
 
-    fs::path dirPath = fs::path(outerDir) / dirName;
+    fs::path outerDirPath = fs::path(outerDir);
+    fs::path dirPath = outerDirPath / dirName;
 
+    // Check if outer directory exists, if not create it
+    if (!fs::exists(outerDirPath)) {
+        if (fs::create_directory(outerDirPath)) {
+            std::cout << "Outer directory created successfully!" << std::endl;
+        } else {
+            std::cerr << "Failed to create outer directory." << std::endl;
+            return;
+        }
+    }
 
+    // Check if inner directory exists, if not create it
     if (fs::exists(dirPath)) {
         std::cout << "Directory already exists." << std::endl;
     } else {
         if (fs::create_directory(dirPath)) {
             std::cout << "Directory created successfully!" << std::endl;
         } else {
-            std::cout << "Failed to create directory." << std::endl;
+            std::cerr << "Failed to create directory." << std::endl;
         }
     }
 }
@@ -303,9 +314,9 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
         }
 
         // Creates directory of classification name inside "resulting_frames" directory 
-        makeFrameDirectory(classifiName, outerFrameTxtDirectory);
+        makeFrameDirectory(classifiName, outputPath);
         
-        fs::path outerDir = outerFrameTxtDirectory;  // Convert string to fs::path
+        fs::path outerDir = outputPath;  // Convert string to fs::path
         fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
 
         // Created txt file
