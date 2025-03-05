@@ -378,10 +378,10 @@ int iterateFolder (std::string sourcePath, std::string outputPath, int targetSam
         // Check if it is a file
         if (fs::is_regular_file(entry.path())) {
             // Process file
-            processFile(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            processFile(entry.path(), "output_frames", targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         } else if (fs::is_directory(entry.path())) {
             // Recurse
-            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            iterateFolder(entry.path(), "output_frames", targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         }
     }
     // Return
@@ -399,9 +399,9 @@ int main (int argc, char *argv[]) {
     if (sourcePath.empty()) sourcePath = "dataset";
 
     std::string outputPath;
-    std::cout << "Enter the output folder path (default is 'processed'): ";
+    std::cout << "Enter the output folder path (default is 'output_frames'): ";
     std::getline(std::cin, outputPath);
-    if (outputPath.empty()) outputPath = "processed";
+    if (outputPath.empty()) outputPath = "output_frames";
 
     std::string targetSampleRate;
     std::cout << "Target sample rate (default is 16000): ";
