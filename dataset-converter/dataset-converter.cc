@@ -305,13 +305,14 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
         // Creates directory of classification name inside "resulting_frames" directory 
         makeFrameDirectory(classifiName, outerFrameTxtDirectory);
         
+        fs::path outerDir = outerFrameTxtDirectory;  // Convert string to fs::path
+        fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
+
         // Created txt file
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();
         fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
         
-        fs::path outerDir = outerFrameTxtDirectory;  // Convert string to fs::path
-        fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
 
         std::cout << "classifiName: " << classifiName << std::endl;
         std::cout << "outerDir: " << outerDir << std::endl;
