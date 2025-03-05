@@ -29,6 +29,7 @@
 #include "make-mfcc.h"
 #include <thread>
 #include <mutex>
+#include "thread_pool.h"
 
 
 namespace fs = std::filesystem;
@@ -346,33 +347,25 @@ void processFileThread(std::string filePath, std::string outputPath, int targetS
  * @param preEmphasisAlpha: Pre-emphasis coefficient
  * @param frameSeconds: Size of each frame
  * @param overlap: Overlap between frames
+ * @param pool: Reference to the thread pool
  * @return: 0 if successful, 1 if error occurs during processing
  */
-int iterateFolder (std::string sourcePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
+int iterateFolder (std::string sourcePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds, ThreadPool& pool) {
     // Check if folder exists
     if (!fs::exists(sourcePath)) {
         std::cerr << "Error: Folder does not exist." << std::endl;
         return 1;
     }
 
-    std::vector<std::thread> threads;
-
     // Read folder
     for (const auto & entry : fs::directory_iterator(sourcePath)) {
         // Check if it is a file
         if (fs::is_regular_file(entry.path())) {
-            // Process file in a new thread
-            threads.emplace_back(processFileThread, entry.path().string(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            // Process file using thread pool
+            pool.enqueue(processFileThread, entry.path().string(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         } else if (fs::is_directory(entry.path())) {
             // Recurse
-            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
-        }
-    }
-
-    // Join all threads
-    for (auto& thread : threads) {
-        if (thread.joinable()) {
-            thread.join();
+            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds, pool);
         }
     }
 
@@ -415,8 +408,12 @@ int main (int argc, char *argv[]) {
     std::getline(std::cin, frameOverlapSeconds);
     if (frameOverlapSeconds.empty()) frameOverlapSeconds = std::to_string(DEFAULT_FRAME_OVERLAP_SECONDS);
 
+    // Create thread pool with a number of threads equal to the hardware concurrency
+    ThreadPool pool(std::thread::hardware_concurrency());
+
     // Iterate through the folder
-    iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds));
+    iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds), pool);
+
     return 0;
 }
 
