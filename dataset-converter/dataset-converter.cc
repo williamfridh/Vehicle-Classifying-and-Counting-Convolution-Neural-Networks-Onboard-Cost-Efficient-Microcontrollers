@@ -27,11 +27,21 @@
 #include <samplerate.h>
 #include "audio-processing.h"
 #include "make-mfcc.h"
+#include <thread>
+#include <mutex>
 
 
 namespace fs = std::filesystem;
 
 static const std::string ALLOWED_FILE_EXTENSIONS[] = {".wav", ".mp3", ".flac", ".ogg"};
+
+// Constants for default values
+const std::string DEFAULT_SOURCE_PATH = "dataset";
+const std::string DEFAULT_OUTPUT_PATH = "output_frames";
+const int DEFAULT_TARGET_SAMPLE_RATE = 16000;
+const float DEFAULT_PRE_EMPHASIS_ALPHA = 0.97;
+const float DEFAULT_FRAME_SECONDS = 0.5;
+const float DEFAULT_FRAME_OVERLAP_SECONDS = 0.25;
 
 /**
  * Convert stereo audio to mono.
@@ -258,59 +268,69 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     int sampleRate;
     int channels;
     std::vector<float> audioData = readWavFile(filePath, sampleRate, channels);
+    if (audioData.empty()) {
+        std::cerr << "Error: Failed to read audio data from file: " << filePath << std::endl;
+        return 1;
+    }
+
     // Send for pre-processing
+    if (channels > 2) {
+        std::cerr << "Error: More than 2 channels are not supported." << std::endl;
+        return 1;
+    }
     if (channels == 2) {
         audioData = stereoToMono(audioData);
     }
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
     audioData = rmsNormalize(audioData, 0.2);
     audioData = preEmphasis(audioData, preEmphasisAlpha);
+
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
-    // Make a new directory and Write new files
-    std::string outerFrameTxtDirectory = "resulting_frames";
+
+    // Create directory for classification name
+    fs::path pathObj(filePath);
+    std::string classifiName = "";
+    auto it = pathObj.begin();
+    if (std::distance(pathObj.begin(), pathObj.end()) >= 2) {
+        std::advance(it, 1);  // Move iterator to the second directory
+        classifiName = it->string();
+    } else {
+        std::cerr << "Error: Path does not contain enough directories." << std::endl;
+        return 1;
+    }
+    makeFrameDirectory(classifiName, outputPath);
+    fs::path classifiDir = fs::path(outputPath) / classifiName;
+
+    // Write frames to files
     for (size_t i = 0; i < frames.size(); ++i) {
-        // Process each frame into a mfcc
         std::vector<float> frame = frames[i]; 
         std::string mfccString = makeMfcc(frame, sampleRate);
-        // Create name of the txt file, directory, and create the txt file
-        fs::path pathObj(filePath);
-        std::string classifiName = "";
-
-        // Gets the name of the "classification name, or rather dataset/"secondDir"
-        auto it = pathObj.begin();
-        if (std::distance(pathObj.begin(), pathObj.end()) >= 2) {
-            std::advance(it, 1);  // Move iterator to the second directory
-            classifiName = it->string();
-        } else {
-            std::cout << "Path does not contain enough directories." << std::endl;
-        }
-
-        // Creates directory of classification name inside "resulting_frames" directory 
-        makeFrameDirectory(classifiName, outputPath);
-        fs::path outerDir = outputPath;  // Convert string to fs::path
-        fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
-
-        // Created txt file
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();
         fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
-        // Save data to the file 
+
         std::ofstream outFile(txtFilePath);
         if (outFile.is_open()) {
             outFile << mfccString;
             outFile.close();
         } else {
-            std::cerr << "Error opening file: " << filePath << std::endl;
+            std::cerr << "Error: Could not open file for writing: " << txtFilePath << std::endl;
         }
-
-        //std::string newFilePath = outputPath + "/" + filePath + "_" + std::to_string(i) + ".wav";
-        //writeWavFile(newFilePath, frames[i], targetSampleRate, 1);
     }
-    // Print out amount of frames generated
+
     std::cout << "Frames generated: " << frames.size() << std::endl;
-    // Return
     return 0;
+}
+
+std::mutex coutMutex; // Mutex for thread-safe console output
+
+void processFileThread(std::string filePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
+    int result = processFile(filePath, outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+    if (result != 0) {
+        std::lock_guard<std::mutex> lock(coutMutex);
+        std::cerr << "Error processing file: " << filePath << std::endl;
+    }
 }
 
 /**
@@ -334,17 +354,28 @@ int iterateFolder (std::string sourcePath, std::string outputPath, int targetSam
         std::cerr << "Error: Folder does not exist." << std::endl;
         return 1;
     }
+
+    std::vector<std::thread> threads;
+
     // Read folder
     for (const auto & entry : fs::directory_iterator(sourcePath)) {
         // Check if it is a file
         if (fs::is_regular_file(entry.path())) {
-            // Process file
-            processFile(entry.path(), "output_frames", targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            // Process file in a new thread
+            threads.emplace_back(processFileThread, entry.path().string(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         } else if (fs::is_directory(entry.path())) {
             // Recurse
-            iterateFolder(entry.path(), "output_frames", targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         }
     }
+
+    // Join all threads
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+
     // Return
     return 0;
 }
@@ -355,38 +386,37 @@ int iterateFolder (std::string sourcePath, std::string outputPath, int targetSam
 int main (int argc, char *argv[]) {
     // Take console input
     std::string sourcePath;
-    std::cout << "Enter the source folder path (default is 'dataset'): ";
+    std::cout << "Enter the source folder path (default is '" << DEFAULT_SOURCE_PATH << "'): ";
     std::getline(std::cin, sourcePath);
-    if (sourcePath.empty()) sourcePath = "dataset";
+    if (sourcePath.empty()) sourcePath = DEFAULT_SOURCE_PATH;
 
     std::string outputPath;
-    std::cout << "Enter the output folder path (default is 'output_frames'): ";
+    std::cout << "Enter the output folder path (default is '" << DEFAULT_OUTPUT_PATH << "'): ";
     std::getline(std::cin, outputPath);
-    if (outputPath.empty()) outputPath = "output_frames";
+    if (outputPath.empty()) outputPath = DEFAULT_OUTPUT_PATH;
 
     std::string targetSampleRate;
-    std::cout << "Target sample rate (default is 16000): ";
+    std::cout << "Target sample rate (default is " << DEFAULT_TARGET_SAMPLE_RATE << "): ";
     std::getline(std::cin, targetSampleRate);
-    if (targetSampleRate.empty()) targetSampleRate = "16000";
+    if (targetSampleRate.empty()) targetSampleRate = std::to_string(DEFAULT_TARGET_SAMPLE_RATE);
 
     std::string preEmphasisAlpha;
-    std::cout << "Pre-emphasis alpha (default is 0.97): ";
+    std::cout << "Pre-emphasis alpha (default is " << DEFAULT_PRE_EMPHASIS_ALPHA << "): ";
     std::getline(std::cin, preEmphasisAlpha);
-    if (preEmphasisAlpha.empty()) preEmphasisAlpha = "0.97";
+    if (preEmphasisAlpha.empty()) preEmphasisAlpha = std::to_string(DEFAULT_PRE_EMPHASIS_ALPHA);
 
     std::string frameSeconds;
-    std::cout << "Frame seconds (default is 0.5): ";
+    std::cout << "Frame seconds (default is " << DEFAULT_FRAME_SECONDS << "): ";
     std::getline(std::cin, frameSeconds);
-    if (frameSeconds.empty()) frameSeconds = "0.5";
+    if (frameSeconds.empty()) frameSeconds = std::to_string(DEFAULT_FRAME_SECONDS);
 
     std::string frameOverlapSeconds;
-    std::cout << "Frame overlap seconds (default is 0.25): ";
+    std::cout << "Frame overlap seconds (default is " << DEFAULT_FRAME_OVERLAP_SECONDS << "): ";
     std::getline(std::cin, frameOverlapSeconds);
-    if (frameOverlapSeconds.empty()) frameOverlapSeconds = "0.25";
+    if (frameOverlapSeconds.empty()) frameOverlapSeconds = std::to_string(DEFAULT_FRAME_OVERLAP_SECONDS);
 
-    // Itterate through the folder
+    // Iterate through the folder
     iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds));
-    // Return
     return 0;
 }
 
