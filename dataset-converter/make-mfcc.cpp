@@ -37,8 +37,8 @@ using namespace std;
 /** 
   * This takes in a matrix, parses it into a string
   *
-  * @param      std::vector<std::vectos<float>>       The mfcc matrix 
-  * @return     mfcc matrix as a string 
+  * @param mfcc matrix: The mfcc matrix 
+  * @return mfcc matrix as a string 
 */
 
 string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
@@ -66,8 +66,8 @@ string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
 /** 
   * Parses the audio into samples which is used by mfcc
   *
-  * @param      audio_source      The audio which is to be parsed
-  * @return     the samples which are to be used by mfcc, and the sample_rate
+  * @param audio_source:  The audio which is to be parsed 
+  * @return The samples which are to be used by mfcc, and the sample_rate
 */
 
 std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
@@ -107,14 +107,14 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
   * Call it using the .wav audio source and 
   * you will get a matrix [[1,2], [3,4]] resembling a mfcc.
   *
-  * @param      audio_source    input 
-  * @return     mfcc matrix as a string 
+  * @param x: input audio 
+  * @param sr: input sample rate 
+  * @return mfcc matrix as a string 
 */
 
 // Instead of taking in audio source, take in the pure audio file data
 
 std::string makeMfcc(std::vector<float> x, int sr){
-  //auto [x, sr]  = parseAudio(audio_source.c_str());
   // Values opt for change incase of optimizing the 
   int n_fft = 400;
   int n_hop = 160;

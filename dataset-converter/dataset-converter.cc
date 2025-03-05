@@ -192,11 +192,14 @@ void writeWavFile(const std::string& filename, const std::vector<float>& audio, 
  * @return: The name of the directory folder    
 */
 
-std::string makeFrameDirectory() {
+void makeFrameDirectory(std::string dirName, std::string outerDir) {
     // Making the path to which the txt file will be saved
-    std::string dir = "resulting_frames";
-    fs::path dirPath = dir;
-    
+    // dirName in this case is the name of the directory where the data is gathered 
+    // Directory path is supposed to look like "resulting_frames/dirName"
+
+    fs::path dirPath = fs::path(outerDir) / dirName;
+
+
     if (fs::exists(dirPath)) {
         std::cout << "Directory already exists." << std::endl;
     } else {
@@ -206,7 +209,6 @@ std::string makeFrameDirectory() {
             std::cout << "Failed to create directory." << std::endl;
         }
     }
-    return dir;
 }
 
 /**
@@ -216,9 +218,9 @@ std::string makeFrameDirectory() {
  * @param destinationDir: The directory in which to move the file 
  * @return: None
 */
-void moveTxtFile(const std::string& txtFilePath, const std::string& destinationDir) {
+void moveTxtFile(fs::path txtFilePath, fs::path destinationDir) {
     fs::path sourcePath(txtFilePath);
-    fs::path destinationPath = fs::path(destinationDir) / sourcePath.filename();
+    fs::path destinationPath = fs::path(destinationDir) / destinationDir /sourcePath.filename();
     try {
         if (fs::exists(sourcePath)) {
             fs::rename(sourcePath, destinationPath); // Move the file
@@ -280,15 +282,43 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
     // Make a new directory and Write new files
-    std::string frameTxtDirectory = makeFrameDirectory();
+    std::string outerFrameTxtDirectory = "resulting_frames";
     for (size_t i = 0; i < frames.size(); ++i) {
         // Process each frame into a mfcc
         std::vector<float> frame = frames[i]; 
         std::string mfccString = makeMfcc(frame, sampleRate);
-        // Create name of the txt file and create the txt file
+        // Create name of the txt file, directory, and create the txt file
+        
+        fs::path pathObj(filePath);
+        std::string classifiName = "";
+
+        // Gets the name of the "classification name, or rather dataset/"secondDir"
+        auto it = pathObj.begin();
+        if (std::distance(pathObj.begin(), pathObj.end()) >= 2) {
+            std::advance(it, 1);  // Move iterator to the second directory
+            classifiName = it->string();
+            std::cout << "Second directory: " << classifiName << std::endl;
+        } else {
+            std::cout << "Path does not contain enough directories." << std::endl;
+        }
+
+        // Creates directory of classification name inside "resulting_frames" directory 
+        makeFrameDirectory(classifiName, outerFrameTxtDirectory);
+        
+        // Created txt file
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();
-        std::string txtFilePath = frameTxtDirectory + "/" + audioFileName + "_frame_number:" + std::to_string(i) + ".txt";
+        fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
+        
+        fs::path outerDir = outerFrameTxtDirectory;  // Convert string to fs::path
+        fs::path classifiDir = outerDir / classifiName;  // Create subdirectory path
+
+        std::cout << "classifiName: " << classifiName << std::endl;
+        std::cout << "outerDir: " << outerDir << std::endl;
+        std::cout << "classifiDir: " << classifiDir << std::endl;
+        std::cout << "txtFilePath: " << txtFilePath << std::endl;
+
+        // "resulting_frames/filePath/audioFileName/_frame_number:i.txt"
         
         // Save data to the file 
         std::ofstream outFile(txtFilePath);
@@ -296,7 +326,7 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
             outFile << mfccString;
             outFile.close();
             std::cout << "Saved: " << filePath << std::endl;
-            moveTxtFile(txtFilePath, frameTxtDirectory);
+            moveTxtFile(txtFilePath, classifiDir);
         } else {
             std::cerr << "Error opening file: " << filePath << std::endl;
         }
