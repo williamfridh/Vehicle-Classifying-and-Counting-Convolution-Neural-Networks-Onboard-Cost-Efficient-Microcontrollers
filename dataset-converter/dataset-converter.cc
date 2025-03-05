@@ -259,7 +259,9 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     int channels;
     std::vector<float> audioData = readWavFile(filePath, sampleRate, channels);
     // Send for pre-processing
-    audioData = stereoToMono(audioData);
+    if (channels == 2) {
+        audioData = stereoToMono(audioData);
+    }
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
     audioData = rmsNormalize(audioData, 0.2);
     audioData = preEmphasis(audioData, preEmphasisAlpha);
