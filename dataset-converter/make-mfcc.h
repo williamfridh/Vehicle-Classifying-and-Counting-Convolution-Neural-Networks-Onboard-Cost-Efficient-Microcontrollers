@@ -5,7 +5,7 @@
 #include <vector>
 
 // Function prototypes
-std::string makeMfcc(std::vector<float> x, int sr);
+std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr);
 
 std::string mfccToString(std::vector<std::vector<float>> mfcc_matrix);
 

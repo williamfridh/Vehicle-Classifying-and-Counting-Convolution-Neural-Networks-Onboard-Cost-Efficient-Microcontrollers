@@ -109,27 +109,25 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
   *
   * @param x: input audio 
   * @param sr: input sample rate 
-  * @return mfcc matrix as a string 
+  * @return mfcc matrix 
 */
 
 // Instead of taking in audio source, take in the pure audio file data
 
-std::string makeMfcc(std::vector<float> x, int sr){
-  // Values opt for change incase of optimizing the 
-  int n_fft = 400;
-  int n_hop = 160;
-  // Microphone used takes in audio from 20-20000 range 
-  int fmin = 20;
-  int fmax = 20000;
-  string pad_mode = "reflect"; 
-  // norm = false, dont know what true does
-  bool norm = false;
-  // 13 mel bands, 13 mfcc's. Opt to change for performance 
-  int n_mfcc = 10;
-  int n_mels = 10;
-
-  std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
-  std::string mfcc_string = mfccToString(mfcc_matrix);
-
-  return mfcc_string;
-}
+  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr){
+  // Values opt for change incase of optimizing the performance
+    int n_fft = 1024;
+    int n_hop = 512;
+    // Microphone used takes in audio from 20-20000 range 
+    int fmin = 20;
+    int fmax = 20000;
+    string pad_mode = "reflect"; 
+    // norm: Applying the last DCT transformation to make the mfcc 
+    bool norm = true;
+    // Amount of mfcc's, number of mels should stay the same  
+    int n_mfcc = 25;
+    int n_mels = 25;
+    
+    std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
+    return mfcc_matrix;
+  }

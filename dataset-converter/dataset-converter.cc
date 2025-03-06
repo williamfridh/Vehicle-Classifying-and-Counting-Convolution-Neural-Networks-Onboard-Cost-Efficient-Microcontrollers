@@ -147,8 +147,18 @@ std::vector<float> resampleAudio(const std::vector<float>& inputAudio, int input
  * @return: Audio data of the WAV file as a vector of floats
  */
 std::vector<float> readWavFile(const std::string& filename, int& sampleRate, int &channels) {
-    SF_INFO sfInfo;
+    //SF_INFO sfInfo;
+    SF_INFO sfInfo = {0};
     SNDFILE* file = sf_open(filename.c_str(), SFM_READ, &sfInfo);
+    if (!file) {
+        std::cerr << "Error: Could not open file " << filename << ": " << sf_strerror(NULL) << std::endl;
+        return {};
+    }
+    if ((sfInfo.format & SF_FORMAT_TYPEMASK) != SF_FORMAT_WAV) {
+        std::cerr << "Error: File " << filename << " is not in WAV format." << std::endl;
+        sf_close(file);
+        return {};
+    }
 
     if (!file) {
         std::cerr << "Error: Could not open file " << filename << std::endl;
@@ -306,14 +316,17 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     // Write frames to files
     for (size_t i = 0; i < frames.size(); ++i) {
         std::vector<float> frame = frames[i]; 
-        std::string mfccString = makeMfcc(frame, sampleRate);
+        std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
+        //normalizeMfcc(mfcc_matrix);
+        // Makes a string 
+        std::string mfcc_string = mfccToString(mfcc_matrix);
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();
         fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
 
         std::ofstream outFile(txtFilePath);
         if (outFile.is_open()) {
-            outFile << mfccString;
+            outFile << mfcc_string;
             outFile.close();
         } else {
             std::cerr << "Error: Could not open file for writing: " << txtFilePath << std::endl;

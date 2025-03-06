@@ -80,3 +80,15 @@ std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS
     return normalizedAudio;
 }
 
+/**
+ * Normalizes the matrix gotten from the MFCC 
+ *   
+ *
+ *
+*/
+
+void normalizeMfcc(std::vector<std::vector<float>> mfcc) {
+
+}
+
+
