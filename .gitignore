@@ -4,4 +4,6 @@
 *.Identifier
 *.wav
 *.vscode*
-
+Model/dataset
+Model/dataset_test/*
+dataset-converter/dataset
