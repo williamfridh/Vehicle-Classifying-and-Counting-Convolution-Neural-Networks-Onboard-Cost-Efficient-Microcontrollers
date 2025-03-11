@@ -16,11 +16,15 @@
 * -------------------------------------------------------------------
 */
 
+
 #include "wavreader.h"
 #include <librosa/librosa.h>
 
 #include <iostream>
 #include <vector>
+#include <iomanip>
+#include <stdio.h>
+
 
 #include <chrono>
 #include <numeric>
@@ -28,8 +32,7 @@
 
 using namespace std;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
   void* h_x = wav_read_open("samples/p225_002.wav");
 
   int format, channels, sr, bits_per_sample;
@@ -63,12 +66,7 @@ int main(int argc, char* argv[])
   int fmin = 80;
   int fmax = 7600;
 
-  auto stft_start_time =  std::chrono::system_clock::now();
-  std::vector<std::vector<std::complex<float>>> X = librosa::Feature::stft(x, n_fft, n_hop, "hann", true, "reflect");
-  auto stft_end_time =  std::chrono::system_clock::now();
-  auto stft_duration = std::chrono::duration_cast<std::chrono::milliseconds>(stft_end_time - stft_start_time);
-  std::cout<<"STFT runing time is "<< stft_duration.count() << "ms" <<std::endl;
-
+  /*
   auto melspectrogram_start_time =  std::chrono::system_clock::now();
   std::vector<std::vector<float>> mels = librosa::Feature::melspectrogram(x, sr, n_fft, n_hop, "hann", true, "reflect", 2.f, n_mel, fmin, fmax);
   auto melspectrogram_end_time =  std::chrono::system_clock::now();
@@ -85,6 +83,35 @@ int main(int argc, char* argv[])
 	  std::cout<<" ";
   }
   std::cout<<"]"<<std::endl;
+  */
+
+  
+  // norm = false, might want to try true.
+  bool norm = false;
+  // 13 mel bands will be used, aswells as number of mfcc's
+  int n_mfcc = 13;
+  int n_mels = 13;
+  // Type 2
+  int type = 2;
+
+  std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, "reflect", 2.f, n_mels, fmin, fmax, n_mfcc, norm, type);
+  
+
+  std::cout << "[";
+  for (size_t i = 0; i < mfcc_matrix.size(); i++) {
+      std::cout << "[";
+      for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
+          std::cout << mfcc_matrix[i][j];
+          if (j != mfcc_matrix[i].size() - 1) {
+              std::cout << ", ";  // Add a comma between elements
+          }
+      }
+      std::cout << "]";
+      if (i != mfcc_matrix.size() - 1) {
+          std::cout << ", ";  // Add a comma between rows
+      }
+  }
+  std::cout << "]" << std::endl;
 
   return 0;
 }
