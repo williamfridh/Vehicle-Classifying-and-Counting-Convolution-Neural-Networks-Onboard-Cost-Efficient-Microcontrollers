@@ -275,7 +275,7 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
         return 1;
     }
     // Read file
-    std::cout << "Processing file: " << filePath << std::endl;
+    //std::cout << "Processing file: " << filePath << std::endl;
     int sampleRate;
     int channels;
     std::vector<float> audioData = readWavFile(filePath, sampleRate, channels);
@@ -313,27 +313,34 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     makeFrameDirectory(classifiName, outputPath);
     fs::path classifiDir = fs::path(outputPath) / classifiName;
 
+    bool firstFrame = true;
+
     // Write frames to files
     for (size_t i = 0; i < frames.size(); ++i) {
         std::vector<float> frame = frames[i]; 
+        
         std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
-        //normalizeMfcc(mfcc_matrix);
-        // Makes a string 
-        std::string mfcc_string = mfccToString(mfcc_matrix);
+        std::string mfccWithLabel = mfccToString(mfcc_matrix, classifiName, firstFrame);
+        firstFrame = false;
+
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();
-        fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
+        fs::path txtFilePath = fs::path(outputPath) / fs::path(classifiName) / (audioFileName + ".txt");
 
-        std::ofstream outFile(txtFilePath);
+        std::ofstream outFile(txtFilePath, std::ios::app);
         if (outFile.is_open()) {
-            outFile << mfcc_string;
+            outFile << mfccWithLabel;
+
+            //if(i == frames.size() - 1){
+            //    outFile << classifiName + "]";
+            //}
             outFile.close();
         } else {
             std::cerr << "Error: Could not open file for writing: " << txtFilePath << std::endl;
         }
     }
 
-    std::cout << "Frames generated: " << frames.size() << std::endl;
+    //std::cout << "Frames generated: " << frames.size() << std::endl;
     return 0;
 }
 

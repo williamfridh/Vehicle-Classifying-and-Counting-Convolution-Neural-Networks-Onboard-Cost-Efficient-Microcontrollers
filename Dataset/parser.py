@@ -1,38 +1,33 @@
-
-import numpy as np
 import pandas as pd
 import os
 import shutil
 
-
-
-#1. Check csv, and the label
-
-#2. Take file from the C:\Users\Pontu\OneDrive\Skrivbord\Dataset\unbalanced_train_segments_training_set_audio_formatted_and_segmented_downloads folder
-
-#3. Put the file into the correct labeled folder 
-
-
-
-data = pd.read_csv('groundtruth_weak_label_training_set.csv')
+# Load CSV
+data = pd.read_csv('esc50.csv')
 
 print(data.head())
 
+# Define base paths
+source_base = r"C:\Users\Pontu\OneDrive\Skrivbord\lib3\Vehicle-Classifying-and-Counting-Convolution-Neural-Networks-Onboard-Cost-Efficient-Microcontrollers\Dataset\audio"
+dest_base = r"C:\Users\Pontu\OneDrive\Skrivbord\lib3\Vehicle-Classifying-and-Counting-Convolution-Neural-Networks-Onboard-Cost-Efficient-Microcontrollers\Dataset\Dataset"
 
+# Define destination folder
+dest_label_folder = os.path.join(dest_base, 'Background_noise')
+
+# Ensure the destination folder exists
+os.makedirs(dest_label_folder, exist_ok=True)
+
+# Iterate over rows and move matching files
 for index, row in data.iterrows():
-    # Change the label depending on what to 
-    if(row['label'] == 'Bus'):
-        # Take the audio from source and put it in dest
-        filename = 'Y' + row['filename']
-        source = 'C:/Users/Pontu/OneDrive/Skrivbord/Dataset/unbalanced_train_segments_training_set_audio_formatted_and_segmented_downloads/'
-        destLabel = 'Bus'
-        dest = 'C:/Users/Pontu/OneDrive/Skrivbord/Dataset/' + destLabel
+    filename = row['filename']  # No need to add 'Y' unless filenames actually start with 'Y'
 
-        src_path = os.path.join(source, filename)
-        dst_path = os.path.join(dest, filename)
+    # Define source and destination paths
+    src_path = os.path.join(source_base, filename)
+    dst_path = os.path.join(dest_label_folder, filename)
 
-        if os.path.exists(src_path):  # Ensure source file exists
-            shutil.move(src_path, dst_path)
-            print(f"Moved: {src_path} → {dst_path}")
-        else:
-            print(f"File not found: {src_path}")
+    # Move file if it exists
+    if os.path.exists(src_path):
+        shutil.move(src_path, dst_path)
+        print(f"Moved: {src_path} → {dst_path}")
+    else:
+        print(f"File not found: {src_path}")

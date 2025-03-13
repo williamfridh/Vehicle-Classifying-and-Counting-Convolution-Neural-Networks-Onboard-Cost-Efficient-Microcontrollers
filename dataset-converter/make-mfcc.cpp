@@ -41,8 +41,12 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
-string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
-  std::string mfcc_string = "[";
+string mfccToString(std::vector<std::vector<float>> mfcc_matrix, std::string label, bool firstFrame){
+  
+  std::string mfcc_string = "";
+  if(firstFrame)  mfcc_string = "[[";
+  else mfcc_string = "[";
+
   for (size_t i = 0; i < mfcc_matrix.size(); i++) {
       mfcc_string += "[";
       for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
@@ -56,7 +60,7 @@ string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
           mfcc_string += ", ";  // Add a comma between rows
       }
   }
-  mfcc_string += "]";
+  mfcc_string += "], " + label + "], ";
 
   return mfcc_string;
 }
