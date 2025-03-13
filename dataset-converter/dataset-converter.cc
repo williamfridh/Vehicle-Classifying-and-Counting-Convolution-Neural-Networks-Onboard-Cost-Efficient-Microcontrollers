@@ -313,15 +313,17 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
     makeFrameDirectory(classifiName, outputPath);
     fs::path classifiDir = fs::path(outputPath) / classifiName;
 
-    bool firstFrame = true;
+    bool lastFrame = false;
 
     // Write frames to files
     for (size_t i = 0; i < frames.size(); ++i) {
         std::vector<float> frame = frames[i]; 
         
+        if (frames.size() - 1 == i) 
+            lastFrame = true;
+
         std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
-        std::string mfccWithLabel = mfccToString(mfcc_matrix, classifiName, firstFrame);
-        firstFrame = false;
+        std::string mfccWithLabel = mfccToString(mfcc_matrix, lastFrame);
 
         fs::path audioFilePath(filePath);
         std::string audioFileName = audioFilePath.stem().string();

@@ -41,12 +41,8 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
-string mfccToString(std::vector<std::vector<float>> mfcc_matrix, std::string label, bool firstFrame){
-  
-  std::string mfcc_string = "";
-  if(firstFrame)  mfcc_string = "[[";
-  else mfcc_string = "[";
-
+string mfccToString(std::vector<std::vector<float>> mfcc_matrix, bool lastFrame){
+  std::string mfcc_string = "[";
   for (size_t i = 0; i < mfcc_matrix.size(); i++) {
       mfcc_string += "[";
       for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
@@ -60,7 +56,8 @@ string mfccToString(std::vector<std::vector<float>> mfcc_matrix, std::string lab
           mfcc_string += ", ";  // Add a comma between rows
       }
   }
-  mfcc_string += "], " + label + "], ";
+  if(lastFrame) mfcc_string += "]";
+  else mfcc_string += "], ";
 
   return mfcc_string;
 }
@@ -133,5 +130,16 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
     int n_mels = 25;
     
     std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
-    return mfcc_matrix;
+
+    // Transpose the mfcc matrix
+    std::vector<std::vector<float>> mfcc_matrix_transposed(mfcc_matrix[0].size(), std::vector<float>(mfcc_matrix.size()));
+    for (size_t i = 0; i < mfcc_matrix.size(); i++) {
+        for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
+            mfcc_matrix_transposed[j][i] = mfcc_matrix[i][j];
+        }
+    }
+
+    // Return final MFCC matrix
+    return mfcc_matrix_transposed;
+
   }
