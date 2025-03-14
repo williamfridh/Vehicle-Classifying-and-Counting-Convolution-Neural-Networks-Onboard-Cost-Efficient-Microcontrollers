@@ -34,11 +34,16 @@
 
 namespace fs = std::filesystem;
 
+std::mutex fileMutex;  // Global mutex for file access
+
+
 static const std::string ALLOWED_FILE_EXTENSIONS[] = {".wav", ".mp3", ".flac", ".ogg"};
 
 // Constants for default values
 const std::string DEFAULT_SOURCE_PATH = "dataset";
 const std::string DEFAULT_OUTPUT_PATH = "output_frames";
+const std::string DEFAULT_FILENAME_PATH = "output_frames.csv";
+
 const int DEFAULT_TARGET_SAMPLE_RATE = 16000;
 const float DEFAULT_PRE_EMPHASIS_ALPHA = 0.97;
 const float DEFAULT_FRAME_SECONDS = 0.5;
@@ -257,7 +262,7 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
  * @param frameOverlapSeconds: Overlap between frames
  * @return: 0 if successful, 1 if error occurs during processing
  */
-int processFile (std::string filePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
+int processFile (std::string filePath, std::string outputPath, std::string filenamePath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
     // Note that no checking for file existence is done here
     // as it is assumed that the file exists.
 
@@ -275,7 +280,7 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
         return 1;
     }
     // Read file
-    std::cout << "Processing file: " << filePath << std::endl;
+    //std::cout << "Processing file: " << filePath << std::endl;
     int sampleRate;
     int channels;
     std::vector<float> audioData = readWavFile(filePath, sampleRate, channels);
@@ -298,49 +303,73 @@ int processFile (std::string filePath, std::string outputPath, int targetSampleR
 
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
+    
+    fs::path outputDir = outputPath;  
+    fs::path filePathP = filenamePath;  
+    fs::path filePathLabel = filePath;  
+    fs::path outputFilePath = outputDir / filePathP;
+    
 
-    // Create directory for classification name
-    fs::path pathObj(filePath);
-    std::string classifiName = "";
-    auto it = pathObj.begin();
-    if (std::distance(pathObj.begin(), pathObj.end()) >= 2) {
-        std::advance(it, 1);  // Move iterator to the second directory
-        classifiName = it->string();
-    } else {
-        std::cerr << "Error: Path does not contain enough directories." << std::endl;
+    // Opens file to write to  
+    std::ofstream outFile(outputFilePath, std::ios::app);
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open file for writing.\n";
         return 1;
     }
-    makeFrameDirectory(classifiName, outputPath);
-    fs::path classifiDir = fs::path(outputPath) / classifiName;
-
     // Write frames to files
     for (size_t i = 0; i < frames.size(); ++i) {
         std::vector<float> frame = frames[i]; 
         std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
-        //normalizeMfcc(mfcc_matrix);
-        // Makes a string 
-        std::string mfcc_string = mfccToString(mfcc_matrix);
-        fs::path audioFilePath(filePath);
-        std::string audioFileName = audioFilePath.stem().string();
-        fs::path txtFilePath = classifiDir / (audioFileName + "_frame_number:" + std::to_string(i) + ".txt");
 
-        std::ofstream outFile(txtFilePath);
-        if (outFile.is_open()) {
-            outFile << mfcc_string;
-            outFile.close();
-        } else {
-            std::cerr << "Error: Could not open file for writing: " << txtFilePath << std::endl;
-        }
+        // Extract label from parent directory 
+        fs::path parentDir = filePathLabel.parent_path();
+        std::string label = parentDir.filename().string();
+        
+        writeMfccToCsv(mfcc_matrix, outFile, label);
     }
+    
+    outFile.close();
 
-    std::cout << "Frames generated: " << frames.size() << std::endl;
+
+    //std::cout << "Frames generated: " << frames.size() << std::endl;
     return 0;
 }
 
 std::mutex coutMutex; // Mutex for thread-safe console output
 
-void processFileThread(std::string filePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
-    int result = processFile(filePath, outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+void createCsv(std::string outputPath, std::string filenamePath){
+    // Convert to paths 
+    fs::path outputDir = outputPath;  
+    fs::path filePathP = filenamePath;  
+    // Create directory
+    if (!fs::exists(outputDir)) {
+        std::cout << "Directory does not exist. Creating: " << outputDir << std::endl;
+        if (!fs::create_directories(outputDir)) {
+            std::cerr << "Error: Unable to create directory.\n";
+        }
+    }
+      // Create output file 
+    fs::path outputFilePath = outputDir / filePathP;
+
+    std::ofstream fileCreation(outputFilePath);
+    if (!fileCreation) {
+        std::cerr << "Error: Could not create the file: " << outputFilePath << std::endl;
+    }
+    fileCreation.close();  // Close after creating an empty file
+        // Create filesteam
+    std::ofstream outFile(outputFilePath);
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open file for writing.\n";
+    }
+    outFile << "mfcc_frame_data, label";
+    outFile << "\n";
+    outFile.close();
+    std::cout << "Created csv file" << std::endl;
+}
+
+
+void processFileThread(std::string filePath, std::string outputPath, std::string filenamePath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
+    int result = processFile(filePath, outputPath, filenamePath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
     if (result != 0) {
         std::lock_guard<std::mutex> lock(coutMutex);
         std::cerr << "Error processing file: " << filePath << std::endl;
@@ -363,7 +392,7 @@ void processFileThread(std::string filePath, std::string outputPath, int targetS
  * @param pool: Reference to the thread pool
  * @return: 0 if successful, 1 if error occurs during processing
  */
-int iterateFolder (std::string sourcePath, std::string outputPath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds, ThreadPool& pool) {
+int iterateFolder (std::string sourcePath, std::string outputPath, std::string filenamePath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds, ThreadPool& pool) {
     // Check if folder exists
     if (!fs::exists(sourcePath)) {
         std::cerr << "Error: Folder does not exist." << std::endl;
@@ -375,10 +404,10 @@ int iterateFolder (std::string sourcePath, std::string outputPath, int targetSam
         // Check if it is a file
         if (fs::is_regular_file(entry.path())) {
             // Process file using thread pool
-            pool.enqueue(processFileThread, entry.path().string(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
+            pool.enqueue(processFileThread, entry.path().string(), outputPath, filenamePath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds);
         } else if (fs::is_directory(entry.path())) {
             // Recurse
-            iterateFolder(entry.path(), outputPath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds, pool);
+            iterateFolder(entry.path(), outputPath, filenamePath, targetSampleRate, preEmphasisAlpha, frameSeconds, frameOverlapSeconds, pool);
         }
     }
 
@@ -401,6 +430,11 @@ int main (int argc, char *argv[]) {
     std::getline(std::cin, outputPath);
     if (outputPath.empty()) outputPath = DEFAULT_OUTPUT_PATH;
 
+    std::string filenamePath;
+    std::cout << "Enter name for csv file (default is '" << DEFAULT_FILENAME_PATH << "'): ";
+    std::getline(std::cin, filenamePath);
+    if (filenamePath.empty()) filenamePath = DEFAULT_FILENAME_PATH;
+
     std::string targetSampleRate;
     std::cout << "Target sample rate (default is " << DEFAULT_TARGET_SAMPLE_RATE << "): ";
     std::getline(std::cin, targetSampleRate);
@@ -421,11 +455,15 @@ int main (int argc, char *argv[]) {
     std::getline(std::cin, frameOverlapSeconds);
     if (frameOverlapSeconds.empty()) frameOverlapSeconds = std::to_string(DEFAULT_FRAME_OVERLAP_SECONDS);
 
+    // Create csv file with headers
+    createCsv(outputPath, filenamePath);
+
     // Create thread pool with a number of threads equal to the hardware concurrency
     ThreadPool pool(std::thread::hardware_concurrency());
 
     // Iterate through the folder
-    iterateFolder(sourcePath, outputPath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds), pool);
+    iterateFolder(sourcePath, outputPath, filenamePath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds), pool);
+
 
     return 0;
 }

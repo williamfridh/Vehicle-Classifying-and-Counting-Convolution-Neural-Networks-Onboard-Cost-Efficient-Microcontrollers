@@ -21,6 +21,7 @@
 #include <librosa/librosa.h>
 
 #include <iostream>
+#include <fstream>  
 #include <vector>
 #include <iomanip>
 #include <stdio.h>
@@ -41,25 +42,23 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
-string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
-  std::string mfcc_string = "[";
-  for (size_t i = 0; i < mfcc_matrix.size(); i++) {
-      mfcc_string += "[";
-      for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
-          mfcc_string += std::to_string(mfcc_matrix[i][j]);
-          if (j != mfcc_matrix[i].size() - 1) {
-              mfcc_string += ", ";  // Add a comma between elements
+void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label) {
+  for (const auto& row : mfcc_matrix) {
+    int count = 0;
+      for (size_t i = 0; i < row.size(); ++i) {
+        count = count + 1;
+        outFile << row[i];  // Write the numeric MFCC value
+          if (i != row.size() - 1) {
+              outFile << " ";  // Add space between values
           }
       }
-      mfcc_string += "]";
-      if (i != mfcc_matrix.size() - 1) {
-          mfcc_string += ", ";  // Add a comma between rows
-      }
+    std::cout << count << std::endl;
   }
-  mfcc_string += "]";
-
-  return mfcc_string;
+  outFile << ","; // Add label
+  outFile << label; // Add label
+  outFile << "\n";  // Add new line after each frame
 }
+
 
 
 
