@@ -21,6 +21,7 @@
 #include <librosa/librosa.h>
 
 #include <iostream>
+#include <mutex>
 #include <fstream>  
 #include <vector>
 #include <iomanip>
@@ -42,23 +43,25 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
+
+
 void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label) {
-  for (const auto& row : mfcc_matrix) {
-    int count = 0;
-      for (size_t i = 0; i < row.size(); ++i) {
-        count = count + 1;
+  for (size_t rowIdx = 0; rowIdx < mfcc_matrix.size(); ++rowIdx) {
+    const auto& row = mfcc_matrix[rowIdx];
+    for (size_t i = 0; i < row.size(); ++i) {
         outFile << row[i];  // Write the numeric MFCC value
-          if (i != row.size() - 1) {
-              outFile << " ";  // Add space between values
-          }
-      }
-    std::cout << count << std::endl;
+        if (i != row.size() - 1) {
+            outFile << ",";  // Add space between values
+        }
+    }
+    if (rowIdx != mfcc_matrix.size() - 1) {
+        outFile << ",";  // Add space between rows (if necessary)
+    }
   }
   outFile << ","; // Add label
   outFile << label; // Add label
   outFile << "\n";  // Add new line after each frame
 }
-
 
 
 
@@ -128,5 +131,16 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
     int n_mels = 25;
     
     std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
-    return mfcc_matrix;
+
+    // Transpose the mfcc matrix
+    std::vector<std::vector<float>> mfcc_matrix_transposed(mfcc_matrix[0].size(), std::vector<float>(mfcc_matrix.size()));
+
+    for (size_t i = 0; i < mfcc_matrix.size(); i++) {
+        for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
+            mfcc_matrix_transposed[j][i] = mfcc_matrix[i][j];
+        }
+    }
+
+
+    return mfcc_matrix_transposed;
   }

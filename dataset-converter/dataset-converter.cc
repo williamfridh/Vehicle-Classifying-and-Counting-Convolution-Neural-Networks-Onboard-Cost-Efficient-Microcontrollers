@@ -262,6 +262,7 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
  * @param frameOverlapSeconds: Overlap between frames
  * @return: 0 if successful, 1 if error occurs during processing
  */
+std::mutex fileWriteMutex;  // Mutex for file writing
 int processFile (std::string filePath, std::string outputPath, std::string filenamePath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
     // Note that no checking for file existence is done here
     // as it is assumed that the file exists.
@@ -310,25 +311,29 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
     fs::path outputFilePath = outputDir / filePathP;
     
 
-    // Opens file to write to  
-    std::ofstream outFile(outputFilePath, std::ios::app);
-    if (!outFile.is_open()) {
-        std::cerr << "Error: Could not open file for writing.\n";
-        return 1;
-    }
-    // Write frames to files
-    for (size_t i = 0; i < frames.size(); ++i) {
-        std::vector<float> frame = frames[i]; 
-        std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
+    {
+        std::lock_guard<std::mutex> lock(fileWriteMutex);  // Lock the mutex for file writing
 
-        // Extract label from parent directory 
-        fs::path parentDir = filePathLabel.parent_path();
-        std::string label = parentDir.filename().string();
+        // Opens file to write to  
+        std::ofstream outFile(outputFilePath, std::ios::app);
+        if (!outFile.is_open()) {
+            std::cerr << "Error: Could not open file for writing.\n";
+            return 1;
+        }
+        // Write frames to files
+        for (size_t i = 0; i < frames.size(); ++i) {
+            std::vector<float> frame = frames[i]; 
+            std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
+
+            // Extract label from parent directory 
+            fs::path parentDir = filePathLabel.parent_path();
+            std::string label = parentDir.filename().string();
+            
+            writeMfccToCsv(mfcc_matrix, outFile, label);
+        }
         
-        writeMfccToCsv(mfcc_matrix, outFile, label);
+        outFile.close();
     }
-    
-    outFile.close();
 
 
     //std::cout << "Frames generated: " << frames.size() << std::endl;
@@ -361,8 +366,6 @@ void createCsv(std::string outputPath, std::string filenamePath){
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open file for writing.\n";
     }
-    outFile << "mfcc_frame_data, label";
-    outFile << "\n";
     outFile.close();
     std::cout << "Created csv file" << std::endl;
 }
