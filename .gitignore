@@ -3,7 +3,6 @@
 *.identifier
 *.Identifier
 *.wav
-*.txt
 *.vscode*
 Model/dataset
 Model/dataset_test/*
