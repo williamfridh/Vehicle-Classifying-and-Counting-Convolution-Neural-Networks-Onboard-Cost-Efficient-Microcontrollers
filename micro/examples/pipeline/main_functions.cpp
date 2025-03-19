@@ -28,9 +28,8 @@ namespace {
   tflite::MicroInterpreter* interpreter = nullptr;
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
-  int inference_count = 0;
 
-  constexpr int kTensorArenaSize = 100000;
+  constexpr int kTensorArenaSize = 360000;
   uint8_t tensor_arena[kTensorArenaSize];
 
   const char* classes[] = {"Background_noise", "Bus", "Car", "Motorcycle", "Truck"};
@@ -118,25 +117,27 @@ void setup() {
 // The name of this function is important for Arduino compatibility.
 void loop() {
 
-  printf("Entering loop\n"); // Debugging statement
+  //printf("Entering loop\n"); // Debugging statement
 
   // Read float from serial port
   float value;
-  printf("Enter a float: ");  // Prompt the user
-  if (scanf("%f", &value) == 1) {  // Read float from serial
-      printf("You entered: %f\n", value);
+  if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from serial
+      //printf("You entered: %f\n", value);
       x[x_pointer] = (int8_t) value;
       x_pointer += 1;
   } else {
-      printf("Invalid input. Try again.\n");
-      while (getchar() != '\n');  // Clear input buffer
+      //printf("Invalid input. Try again.\n");
+      // Clear the buffer
+      while (getchar() != '\n');
+      return;
   }
 
-  printf("x_pointer: %d\n", x_pointer);
+  //printf("x_pointer: %d\n", x_pointer);
 
   if (x_pointer < 208) {
     return;
   }
+  x_pointer = 0;
 
   // Reshape x_quantized to match the input tensor shape (1, 13, 16, 1)
   int8_t x_quantized_reshaped[1][13][16][1];
@@ -164,6 +165,7 @@ void loop() {
   }
 
   // Output is an array, find the index of the largest value
+  // Might be redudant if softmax is working
   int output_size = output->dims->data[1]; // Assuming 1D output array
   int max_index = 0;
   int8_t max_value = output->data.int8[0];
@@ -173,11 +175,6 @@ void loop() {
       max_index = i;
     }
   }
-  printf("Classification: %s\n", classes[max_index]);
-
-  // Increment the inference_counter
-  inference_count += 1;
-
-  // Reset x_pointer
-  x_pointer = 0;
+  //printf("Classification: %s\n", classes[max_index]);
+  printf("%d\n", max_index);
 }

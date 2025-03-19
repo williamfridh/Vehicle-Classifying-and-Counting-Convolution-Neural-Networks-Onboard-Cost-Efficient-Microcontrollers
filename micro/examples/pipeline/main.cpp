@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
   setup();
   // Wait for a bit to let the serial console settle
   printf("Ready to start\n");
-  //while (true) {
+  while (true) {
     loop();
-  //}
+  }
 }
