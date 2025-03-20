@@ -42,12 +42,13 @@ static const std::string ALLOWED_FILE_EXTENSIONS[] = {".wav", ".mp3", ".flac", "
 // Constants for default values
 const std::string DEFAULT_SOURCE_PATH = "dataset";
 const std::string DEFAULT_OUTPUT_PATH = "output_frames";
-const std::string DEFAULT_FILENAME_PATH = "output_frames.csv";
+const std::string DEFAULT_FILENAME_PATH = ".csv";
 
 const int DEFAULT_TARGET_SAMPLE_RATE = 16000;
 const float DEFAULT_PRE_EMPHASIS_ALPHA = 0.97;
-const float DEFAULT_FRAME_SECONDS = 0.5;
-const float DEFAULT_FRAME_OVERLAP_SECONDS = 0.25;
+const float DEFAULT_FRAME_SECONDS = 0.1;
+const float DEFAULT_FRAME_OVERLAP_SECONDS = 0.05;
+const float NUMBER_OF_MFCC = 13;
 
 /**
  * Convert stereo audio to mono.
@@ -323,7 +324,7 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         // Write frames to files
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
-            std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate);
+            std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC);
 
             // Extract label from parent directory 
             fs::path parentDir = filePathLabel.parent_path();
@@ -342,33 +343,43 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
 
 std::mutex coutMutex; // Mutex for thread-safe console output
 
-void createCsv(std::string outputPath, std::string filenamePath){
-    // Convert to paths 
+
+// Convert float to string with 2 decimal places
+std::string floatToString(float value, int precision = 2) {
+    std::ostringstream ss;
+    ss << std::fixed << std::setprecision(precision) << value;
+    return ss.str();
+}
+
+
+std::string createCsv(std::string outputPath, std::string filenamePath) {
+    // Convert to paths
+    std::string frame_seconds = floatToString(DEFAULT_FRAME_SECONDS, 2);
+    std::string frame_overlap = floatToString(DEFAULT_FRAME_OVERLAP_SECONDS, 2); 
+    std::string num_mfcc = floatToString(NUMBER_OF_MFCC, 0); 
+
+    std::string prefix = "seconds_per_frame:" + frame_seconds + 
+                     ",overlap:" + frame_overlap + 
+                     ",mfccs:" + num_mfcc + "_";
+
+    std::string newFileNamePath = prefix + filenamePath;
     fs::path outputDir = outputPath;  
-    fs::path filePathP = filenamePath;  
-    // Create directory
+    fs::path filePathP = prefix + newFileNamePath;  
+    // Create directory if it doesn't exist
     if (!fs::exists(outputDir)) {
         std::cout << "Directory does not exist. Creating: " << outputDir << std::endl;
         if (!fs::create_directories(outputDir)) {
             std::cerr << "Error: Unable to create directory.\n";
         }
     }
-      // Create output file 
+    
+    // Create output file path
     fs::path outputFilePath = outputDir / filePathP;
 
-    std::ofstream fileCreation(outputFilePath);
-    if (!fileCreation) {
-        std::cerr << "Error: Could not create the file: " << outputFilePath << std::endl;
-    }
-    fileCreation.close();  // Close after creating an empty file
-        // Create filesteam
-    std::ofstream outFile(outputFilePath);
-    if (!outFile.is_open()) {
-        std::cerr << "Error: Could not open file for writing.\n";
-    }
-    outFile.close();
-    std::cout << "Created csv file" << std::endl;
+
+    return newFileNamePath;
 }
+
 
 
 void processFileThread(std::string filePath, std::string outputPath, std::string filenamePath, int targetSampleRate, float preEmphasisAlpha, float frameSeconds, float frameOverlapSeconds) {
@@ -459,13 +470,13 @@ int main (int argc, char *argv[]) {
     if (frameOverlapSeconds.empty()) frameOverlapSeconds = std::to_string(DEFAULT_FRAME_OVERLAP_SECONDS);
 
     // Create csv file with headers
-    createCsv(outputPath, filenamePath);
+    std::string newfileNamePath = createCsv(outputPath, filenamePath);
 
     // Create thread pool with a number of threads equal to the hardware concurrency
     ThreadPool pool(std::thread::hardware_concurrency());
 
     // Iterate through the folder
-    iterateFolder(sourcePath, outputPath, filenamePath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds), pool);
+    iterateFolder(sourcePath, outputPath, newfileNamePath, std::stoi(targetSampleRate), std::stof(preEmphasisAlpha), std::stof(frameSeconds), std::stof(frameOverlapSeconds), pool);
 
 
     return 0;
