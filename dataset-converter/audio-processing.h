@@ -35,5 +35,15 @@ float computeRMS(const std::vector<float>& audio);
  */
 std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS = 0.1);
 
+/**
+ * Normalize to [-1, 1].
+ * 
+ * This function normalizes the audio data to the range [-1, 1].
+ * 
+ * @param audio: Audio data
+ * @return: Normalized audio data
+ */
+std::vector<float> normalizeAudio(const std::vector<float>& audio);
+
 #endif // AUDIO_PROCESSING_H
 

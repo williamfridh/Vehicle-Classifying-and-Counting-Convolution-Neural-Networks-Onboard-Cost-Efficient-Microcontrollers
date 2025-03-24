@@ -81,6 +81,32 @@ std::vector<float> rmsNormalize(const std::vector<float>& audio, float targetRMS
 }
 
 /**
+ * Normalize to [-1, 1].
+ * 
+ * This function normalizes the audio data to the range [-1, 1].
+ * 
+ * @param audio: Audio data
+ * @return: Normalized audio data
+ */
+std::vector<float> normalizeAudio(const std::vector<float>& audio) {
+    float maxSample = 0.0;
+    for (float sample : audio) {
+        maxSample = std::max(maxSample, std::abs(sample));
+    }
+
+    if (maxSample < 1e-8) {
+        return audio;  // Return original audio if all samples are zero
+    }
+
+    std::vector<float> normalizedAudio(audio.size());
+    for (size_t i = 0; i < audio.size(); i++) {
+        normalizedAudio[i] = audio[i] / maxSample;
+    }
+
+    return normalizedAudio;
+}
+
+/**
  * Normalizes the matrix gotten from the MFCC 
  *   
  *

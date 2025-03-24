@@ -99,6 +99,11 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
     for (size_t i = 0; i + frameLength <= audio.size(); i += (frameLength - overlapLength)) {
         // Extract frame from signal
         std::vector<float> frame(audio.begin() + i, audio.begin() + i + frameLength);
+        // Exclude frame when too quiet
+        float avgAudioLevel = getAverageAudioLevel(frame);
+        if (avgAudioLevel < 0.1 && avgAudioLevel > -0.1) {
+            continue;
+        }
         frames.push_back(frame);
     }
 
@@ -247,6 +252,22 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
     }
 }
 
+/**
+ * Get average audio level.
+ * 
+ * This function calculates the average audio level of a frame.
+ * 
+ * @param frame: Audio frame
+ * @return: Average audio level
+ */
+float getAverageAudioLevel(const std::vector<float>& frame) {
+    float sum = 0;
+    for (float sample : frame) {
+        sum += std::abs(sample);
+    }
+    return sum / frame.size();
+}
+
 
 /**
  * Process single file.
@@ -300,6 +321,7 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         audioData = stereoToMono(audioData);
     }
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
+    audioData = normalizeAudio(audioData);
     audioData = rmsNormalize(audioData, 0.2);
     audioData = preEmphasis(audioData, preEmphasisAlpha);
 
@@ -324,6 +346,12 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         // Write frames to files
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
+
+            // Continue loop if average audio level is too low
+            if (getAverageAudioLevel(frame) < 0.01) {
+                continue;
+            }
+
             std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC);
 
             // Extract label from parent directory 
