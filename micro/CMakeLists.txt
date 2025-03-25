@@ -708,8 +708,8 @@ target_link_libraries(
   pico_multicore
 )
 
-add_subdirectory("examples/hello_world")
-add_subdirectory("examples/person_detection")
+#add_subdirectory("examples/hello_world")
+#add_subdirectory("examples/person_detection")
 add_subdirectory("examples/pipeline")
 
 add_subdirectory("tests/arena_allocator_non_persistent_arena_buffer_allocator_test")
