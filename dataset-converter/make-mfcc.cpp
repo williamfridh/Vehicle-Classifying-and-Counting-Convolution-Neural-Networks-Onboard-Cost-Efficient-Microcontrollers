@@ -21,6 +21,8 @@
 #include <librosa/librosa.h>
 
 #include <iostream>
+#include <mutex>
+#include <fstream>  
 #include <vector>
 #include <iomanip>
 #include <stdio.h>
@@ -41,24 +43,24 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
-string mfccToString(std::vector<std::vector<float>> mfcc_matrix){
-  std::string mfcc_string = "[";
-  for (size_t i = 0; i < mfcc_matrix.size(); i++) {
-      mfcc_string += "[";
-      for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
-          mfcc_string += std::to_string(mfcc_matrix[i][j]);
-          if (j != mfcc_matrix[i].size() - 1) {
-              mfcc_string += ", ";  // Add a comma between elements
-          }
-      }
-      mfcc_string += "]";
-      if (i != mfcc_matrix.size() - 1) {
-          mfcc_string += ", ";  // Add a comma between rows
-      }
-  }
-  mfcc_string += "]";
 
-  return mfcc_string;
+
+void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label) {
+  for (size_t rowIdx = 0; rowIdx < mfcc_matrix.size(); ++rowIdx) {
+    const auto& row = mfcc_matrix[rowIdx];
+    for (size_t i = 0; i < row.size(); ++i) {
+        outFile << row[i];  // Write the numeric MFCC value
+        if (i != row.size() - 1) {
+            outFile << ",";  // Add space between values
+        }
+    }
+    if (rowIdx != mfcc_matrix.size() - 1) {
+        outFile << ",";  // Add space between rows (if necessary)
+    }
+  }
+  outFile << ","; // Add label
+  outFile << label; // Add label
+  outFile << "\n";  // Add new line after each frame
 }
 
 
@@ -114,7 +116,7 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
 
 // Instead of taking in audio source, take in the pure audio file data
 
-  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr){
+  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc){
   // Values opt for change incase of optimizing the performance
     int n_fft = 1024;
     int n_hop = 512;
@@ -125,9 +127,20 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
     // norm: Applying the last DCT transformation to make the mfcc 
     bool norm = true;
     // Amount of mfcc's, number of mels should stay the same  
-    int n_mfcc = 25;
-    int n_mels = 25;
+    int n_mfcc = num_mfcc;
+    int n_mels = num_mfcc;
     
     std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
-    return mfcc_matrix;
+
+    // Transpose the mfcc matrix
+    std::vector<std::vector<float>> mfcc_matrix_transposed(mfcc_matrix[0].size(), std::vector<float>(mfcc_matrix.size()));
+
+    for (size_t i = 0; i < mfcc_matrix.size(); i++) {
+        for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
+            mfcc_matrix_transposed[j][i] = mfcc_matrix[i][j];
+        }
+    }
+
+
+    return mfcc_matrix_transposed;
   }
