@@ -29,10 +29,10 @@ namespace {
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
 
-  constexpr int kTensorArenaSize = 360000;
+  constexpr int kTensorArenaSize = 100000;
   uint8_t tensor_arena[kTensorArenaSize];
 
-  const char* classes[] = {"Background_noise", "Bus", "Car", "Motorcycle", "Truck"};
+  const char* classes[] = {"Background_noise", "Commercial", "Car", "Motorcycle"};
   int x_pointer = 0; // Pointer to the current audio input data
   int8_t x[208] = {0}; // Audio input data
 }  // namespace

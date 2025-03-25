@@ -9,5 +9,6 @@ Model/dataset_test/*
 dataset-converter/dataset
 dataset-converter/mini_dataset
 dataset-converter/output_frames
+*.crdownload
 
 *.csv
