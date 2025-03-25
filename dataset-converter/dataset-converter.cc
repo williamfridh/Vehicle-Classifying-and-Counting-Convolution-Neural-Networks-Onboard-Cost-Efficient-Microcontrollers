@@ -72,6 +72,22 @@ std::vector<float> stereoToMono(const std::vector<float>& audio) {
 }
 
 /**
+ * Get average audio level.
+ * 
+ * This function calculates the average audio level of a frame.
+ * 
+ * @param frame: Audio frame
+ * @return: Average audio level
+ */
+float getAverageAudioLevel(const std::vector<float>& frame) {
+    float sum = 0;
+    for (float sample : frame) {
+        sum += std::abs(sample);
+    }
+    return sum / frame.size();
+}
+
+/**
  * Generate frames.
  * 
  * This function takes audio data and frames it into segments of a given size,
@@ -252,22 +268,6 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
     }
 }
 
-/**
- * Get average audio level.
- * 
- * This function calculates the average audio level of a frame.
- * 
- * @param frame: Audio frame
- * @return: Average audio level
- */
-float getAverageAudioLevel(const std::vector<float>& frame) {
-    float sum = 0;
-    for (float sample : frame) {
-        sum += std::abs(sample);
-    }
-    return sum / frame.size();
-}
-
 
 /**
  * Process single file.
@@ -346,11 +346,6 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         // Write frames to files
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
-
-            // Continue loop if average audio level is too low
-            if (getAverageAudioLevel(frame) < 0.01) {
-                continue;
-            }
 
             std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC);
 
