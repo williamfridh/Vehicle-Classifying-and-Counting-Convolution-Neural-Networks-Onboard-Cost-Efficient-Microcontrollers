@@ -29,12 +29,12 @@ namespace {
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
 
-  constexpr int kTensorArenaSize = 100000;
+  constexpr int kTensorArenaSize = 200000;
   uint8_t tensor_arena[kTensorArenaSize];
 
-  const char* classes[] = {"Background_noise", "Commercial", "Car", "Motorcycle"};
+  const char* classes[] = {"Background_noise", "Commercial", "Car", "Motorcycle"}; // Used for testing.
   int x_pointer = 0; // Pointer to the current audio input data
-  int8_t x[208] = {0}; // Audio input data
+  float x[640] = {0}; // Audio input data
 }  // namespace
 
 // The name of this function is important for Arduino compatibility.
@@ -56,7 +56,7 @@ void setup() {
   // This pulls in all the operation implementations we need.
   // NOLINTNEXTLINE(runtime-global-variables)
 
-  static tflite::MicroMutableOpResolver<5> resolver;
+  static tflite::MicroMutableOpResolver<7> resolver;
 
   TfLiteStatus resolve_status;
   resolve_status = resolver.AddConv2D();
@@ -86,6 +86,18 @@ void setup() {
   resolve_status = resolver.AddReshape();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Reshape\n");
+      return;
+  }
+
+  resolve_status = resolver.AddMul();
+  if (resolve_status != kTfLiteOk) {
+      printf("Op resolver failed to add Mul\n");
+      return;
+  }
+
+  resolve_status = resolver.AddAdd();
+  if (resolve_status != kTfLiteOk) {
+      printf("Op resolver failed to add Add\n");
       return;
   }
 
@@ -123,7 +135,7 @@ void loop() {
   float value;
   if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from serial
       //printf("You entered: %f\n", value);
-      x[x_pointer] = (int8_t) value;
+      x[x_pointer] = value;
       x_pointer += 1;
   } else {
       //printf("Invalid input. Try again.\n");
@@ -134,21 +146,21 @@ void loop() {
 
   //printf("x_pointer: %d\n", x_pointer);
 
-  if (x_pointer < 208) {
+  if (x_pointer < 640) {
     return;
   }
   x_pointer = 0;
 
-  // Reshape x_quantized to match the input tensor shape (1, 13, 16, 1)
-  int8_t x_quantized_reshaped[1][13][16][1];
-  for (int i = 0; i < 13; i++) {
+  // Reshape x_quantized to match the input tensor shape (1, 40, 16, 1)
+  float x_quantized_reshaped[1][40][16][1];
+  for (int i = 0; i < 40; i++) {
     for (int j = 0; j < 16; j++) {
       x_quantized_reshaped[0][i][j][0] = x[i * 16 + j];
     }
   }
 
   // Copy the audio input data to the input tensor
-  memcpy(input->data.int8, x_quantized_reshaped, sizeof(x_quantized_reshaped));
+  memcpy(input->data.f, x_quantized_reshaped, sizeof(x_quantized_reshaped));
 
   // Run inference, and report any error
   TfLiteStatus invoke_status = interpreter->Invoke();
@@ -168,10 +180,10 @@ void loop() {
   // Might be redudant if softmax is working
   int output_size = output->dims->data[1]; // Assuming 1D output array
   int max_index = 0;
-  int8_t max_value = output->data.int8[0];
+  float max_value = output->data.f[0];
   for (int i = 1; i < output_size; i++) {
-    if (output->data.int8[i] > max_value) {
-      max_value = output->data.int8[i];
+    if (output->data.f[i] > max_value) {
+      max_value = output->data.f[i];
       max_index = i;
     }
   }
