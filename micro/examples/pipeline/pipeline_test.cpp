@@ -16,7 +16,7 @@ limitations under the License.
 #include <math.h>
 
 #include "tensorflow/lite/core/c/common.h"
-#include "pipeline_int8_model_data.h"
+#include "pipeline_float_model_data.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_log.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
@@ -48,7 +48,7 @@ TfLiteStatus ProfileMemoryAndLatency() {
   tflite::RecordingMicroAllocator* allocator(
       tflite::RecordingMicroAllocator::Create(tensor_arena, kTensorArenaSize));
   tflite::RecordingMicroInterpreter interpreter(
-      tflite::GetModel(g_pipeline_int8_model_data), op_resolver, allocator,
+      tflite::GetModel(g_pipeline_float_model_data), op_resolver, allocator,
       tflite::MicroResourceVariables::Create(allocator, kNumResourceVariables),
       &profiler);
 
@@ -67,7 +67,7 @@ TfLiteStatus ProfileMemoryAndLatency() {
 
 TfLiteStatus LoadFloatModelAndPerformInference() {
   const tflite::Model* model =
-      ::tflite::GetModel(g_pipeline_int8_model_data);
+      ::tflite::GetModel(g_pipeline_float_model_data);
   TFLITE_CHECK_EQ(model->version(), TFLITE_SCHEMA_VERSION);
 
   PipelineOpResolver op_resolver;

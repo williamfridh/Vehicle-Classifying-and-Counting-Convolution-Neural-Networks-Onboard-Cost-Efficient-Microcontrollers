@@ -24,7 +24,7 @@ set_target_properties(
 
 target_sources(pipeline_test
   PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}/pipeline_int8_model_data.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipeline_float_model_data.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipeline_test.cpp
 )
 
@@ -60,7 +60,7 @@ set_target_properties(
 target_sources(pipeline
   PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/constants.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/pipeline_int8_model_data.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipeline_float_model_data.cpp
   ${CMAKE_CURRENT_LIST_DIR}/main.cpp
   ${CMAKE_CURRENT_LIST_DIR}/main_functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/constants.h

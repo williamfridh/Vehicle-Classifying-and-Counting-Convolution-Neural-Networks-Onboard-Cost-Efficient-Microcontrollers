@@ -30,6 +30,9 @@ void setup();
 // compatibility.
 void loop();
 
+// Declare setupError as an external variable to be used by both main_functions.cpp and main.cpp
+extern bool setupError;
+
 #ifdef __cplusplus
 }
 #endif

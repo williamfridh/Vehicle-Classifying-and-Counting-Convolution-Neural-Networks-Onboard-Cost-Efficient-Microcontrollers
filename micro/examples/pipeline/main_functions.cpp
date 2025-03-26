@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "constants.h"
-#include "pipeline_int8_model_data.h"
+#include "pipeline_float_model_data.h"
 #include "main_functions.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_log.h"
@@ -29,13 +29,15 @@ namespace {
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
 
-  constexpr int kTensorArenaSize = 200000;
+  constexpr int kTensorArenaSize = 300000;
   uint8_t tensor_arena[kTensorArenaSize];
-
-  const char* classes[] = {"Background_noise", "Commercial", "Car", "Motorcycle"}; // Used for testing.
+  
   int x_pointer = 0; // Pointer to the current audio input data
   float x[640] = {0}; // Audio input data
 }  // namespace
+
+// Global variables, accessed by the main task.
+bool setupError = false;
 
 // The name of this function is important for Arduino compatibility.
 void setup() {
@@ -43,13 +45,10 @@ void setup() {
 
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
-  model = tflite::GetModel(g_pipeline_int8_model_data);
+  model = tflite::GetModel(g_pipeline_float_model_data);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     printf("Model provided is schema version %d not equal to supported version %d.\n", model->version(), TFLITE_SCHEMA_VERSION);
-    //MicroPrintf(
-    //    "Model provided is schema version %d not equal "
-    //    "to supported version %d.",
-    //    model->version(), TFLITE_SCHEMA_VERSION);
+    setupError = true;
     return;
   }
 
@@ -62,42 +61,49 @@ void setup() {
   resolve_status = resolver.AddConv2D();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Conv2D\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddFullyConnected();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add FullyConnected\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddMaxPool2D();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add MaxPool2D\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddSoftmax();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Softmax\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddReshape();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Reshape\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddMul();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Mul\n");
+      setupError = true;
       return;
   }
 
   resolve_status = resolver.AddAdd();
   if (resolve_status != kTfLiteOk) {
       printf("Op resolver failed to add Add\n");
+      setupError = true;
       return;
   }
 
@@ -110,7 +116,7 @@ void setup() {
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
     printf("AllocateTensors() failed\n");
-    //MicroPrintf("AllocateTensors() failed");
+    setupError = true;
     return;
   }
 

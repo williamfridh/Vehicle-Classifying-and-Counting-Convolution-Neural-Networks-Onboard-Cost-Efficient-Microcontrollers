@@ -22,10 +22,18 @@ limitations under the License.
 // requirements for entry code (like an app_main function) should specialize
 // this main.cc file in a target-specific subfolder.
 int main(int argc, char* argv[]) {
+  // Initialize serial communication.
   stdio_init_all();
-  sleep_ms(5000);
-  setup();
-  // Wait for a bit to let the serial console settle
+  // Artificial delay to prevent missing first serial output(s).
+  sleep_ms(START_DELAY);
+  // Setup program.
+  setup(5000);
+  // Check for setup errors.
+  if (setupError) {
+    printf("Setup failed\n");
+    return 1;
+  }
+  // Everything looks green! Ready to start.
   printf("Ready to start\n");
   while (true) {
     loop();

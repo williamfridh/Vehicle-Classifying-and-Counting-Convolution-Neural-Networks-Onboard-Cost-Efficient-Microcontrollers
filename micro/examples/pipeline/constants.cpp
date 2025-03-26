@@ -15,12 +15,3 @@ limitations under the License.
 
 #include "constants.h"
 
-// This is a small number so that it's easy to read the logs
-const int kInferencesPerCycle = 20;
-
-#define NUM_OF_CLASSES 4                                                        // Number of classes.
-#define MAX_NEGATIVE_GUESSES 2
-#define NUM_OF_MFCC 400
-#define NEGATIVE_CLASS_INDEX 0                                                  // Index of the negative class.
-
-const char* CLASSES[NUM_OF_CLASSES]= {"Car", "Truck", "Bus", "Motorcycle"};     // Possible classes (labels).
