@@ -44,8 +44,7 @@ using namespace std;
 
 // Instead of taking in audio source, take in the pure audio file data
 
-  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc){
-    printf("MAKEMFCC FUNCTION START");
+  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc, int num_mels){
 
   // Values opt for change incase of optimizing the performance
     int n_fft = 1024;
@@ -58,13 +57,11 @@ using namespace std;
     bool norm = true;
     // Amount of mfcc's, number of mels should stay the same  
     int n_mfcc = num_mfcc;
-    int n_mels = num_mfcc;
+    int n_mels = num_mels;
     
-    printf("MAKEMFCC FUNCTION MIDDLE");
 
     std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
 
-    printf("MAKEMFCC FUNCTION MFCC MATRIX");
 
     // Transpose the mfcc matrix
     std::vector<std::vector<float>> mfcc_matrix_transposed(mfcc_matrix[0].size(), std::vector<float>(mfcc_matrix.size()));
@@ -75,7 +72,6 @@ using namespace std;
         }
     }
 
-    printf("MAKEMFCC FUNCTION END");
 
     return mfcc_matrix_transposed;
   }
