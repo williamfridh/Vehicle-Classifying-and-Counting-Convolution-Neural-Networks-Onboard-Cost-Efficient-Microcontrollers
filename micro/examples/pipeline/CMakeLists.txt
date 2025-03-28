@@ -59,8 +59,8 @@ set_target_properties(
 
 
 
-file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_LIST_DIR}/librosa/*.cpp")
-file(GLOB_RECURSE LIBROSA_HEADERS "${CMAKE_CURRENT_LIST_DIR}/librosa/*.h")
+#file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_LIST_DIR}/librosa/*.cpp")
+#file(GLOB_RECURSE LIBROSA_HEADERS "${CMAKE_CURRENT_LIST_DIR}/librosa/*.h")
 
 target_sources(pipeline
   PRIVATE
@@ -70,8 +70,8 @@ target_sources(pipeline
   ${CMAKE_CURRENT_LIST_DIR}/main_functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/constants.h
   ${CMAKE_CURRENT_LIST_DIR}/main_functions.h
-  ${CMAKE_CURRENT_LIST_DIR}/make-mfcc.h
-  ${LIBROSA_HEADERS}
+  ${CMAKE_CURRENT_LIST_DIR}/make-mfcc.cpp
+  #${LIBROSA_HEADERS}
   ${SOURCE_FILES}
 )
 

@@ -148,7 +148,7 @@ void setup() {
 void loop() {
 
 
-  while(frameAmount < 10)
+  //while(frameAmount < 10)
 
   //printf("Entering loop\n"); // Debugging statement
 

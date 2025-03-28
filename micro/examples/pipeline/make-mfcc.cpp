@@ -16,8 +16,6 @@
 * -------------------------------------------------------------------
 */
 
-
-#include "wavreader.h"
 #include <librosa/librosa.h>
 
 #include <iostream>
@@ -33,76 +31,6 @@
 #include <algorithm>
 
 using namespace std;
-
-
-
-/** 
-  * This takes in a matrix, parses it into a string
-  *
-  * @param mfcc matrix: The mfcc matrix 
-  * @return mfcc matrix as a string 
-*/
-
-
-
-void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label) {
-  for (size_t rowIdx = 0; rowIdx < mfcc_matrix.size(); ++rowIdx) {
-    const auto& row = mfcc_matrix[rowIdx];
-    for (size_t i = 0; i < row.size(); ++i) {
-        outFile << row[i];  // Write the numeric MFCC value
-        if (i != row.size() - 1) {
-            outFile << ",";  // Add space between values
-        }
-    }
-    if (rowIdx != mfcc_matrix.size() - 1) {
-        outFile << ",";  // Add space between rows (if necessary)
-    }
-  }
-  outFile << ","; // Add label
-  outFile << label; // Add label
-  outFile << "\n";  // Add new line after each frame
-}
-
-
-
-/** 
-  * Parses the audio into samples which is used by mfcc
-  *
-  * @param audio_source:  The audio which is to be parsed 
-  * @return The samples which are to be used by mfcc, and the sample_rate
-*/
-
-std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
-
-  void* h_x = wav_read_open(audio_source);
-
-  int format, channels, sr, bits_per_sample;
-  unsigned int data_length;
-  int res = wav_get_header(h_x, &format, &channels, &sr, &bits_per_sample, &data_length);
-  if (!res)
-  {
-    cerr << "get ref header error: " << res << endl;
-    //return -1;
-  }
-
-  int samples = data_length * 8 / bits_per_sample;
-  std::vector<int16_t> tmp(samples);
-  res = wav_read_data(h_x, reinterpret_cast<unsigned char*>(tmp.data()), data_length);
-  if (res < 0)
-  {
-    cerr << "read wav file error: " << res << endl;
-    //return -1;
-  }
-  std::vector<float> x(samples);
-  std::transform(tmp.begin(), tmp.end(), x.begin(),
-    [](int16_t a) {
-    return static_cast<float>(a) / 32767.f;
-  });
-
-  return std::make_tuple(x, sr);
-}
-
-
 
 /** 
   * This creates a mfcc matrix outputted as a string.  
