@@ -46,9 +46,11 @@ const std::string DEFAULT_FILENAME_PATH = ".csv";
 
 const int DEFAULT_TARGET_SAMPLE_RATE = 16000;
 const float DEFAULT_PRE_EMPHASIS_ALPHA = 0.97;
-const float DEFAULT_FRAME_SECONDS = 0.1;
-const float DEFAULT_FRAME_OVERLAP_SECONDS = 0.05;
-const float NUMBER_OF_MFCC = 13;
+const float DEFAULT_FRAME_SECONDS = 0.25;
+const float DEFAULT_FRAME_OVERLAP_SECONDS = 0.125;
+const float NUMBER_OF_MFCC = 16;
+const float NUMBER_OF_MEL_BANDS = 32;
+
 
 /**
  * Convert stereo audio to mono.
@@ -113,21 +115,11 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
 
     // Step through signal with stride (frameLength - overlapLength)
     for (size_t i = 0; i + frameLength <= audio.size(); i += (frameLength - overlapLength)) {
-        // Extract frame from signal
+        // Extract frame from signal    
         std::vector<float> frame(audio.begin() + i, audio.begin() + i + frameLength);
         frames.push_back(frame);
     }
 
-    if (!frames.empty()) {
-        std::cout << "{";
-        for (size_t i = 0; i < frames[0].size(); i++) {
-            std::cout << frames[0][i];
-            if (i != frames[0].size() - 1) {
-                std::cout << ", ";
-            }
-        }
-        std::cout << "}" << std::endl;
-    }
 
     return frames;
 }
@@ -353,7 +345,7 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
 
-            std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC);
+            std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC, NUMBER_OF_MEL_BANDS);
 
             // Extract label from parent directory 
             fs::path parentDir = filePathLabel.parent_path();
