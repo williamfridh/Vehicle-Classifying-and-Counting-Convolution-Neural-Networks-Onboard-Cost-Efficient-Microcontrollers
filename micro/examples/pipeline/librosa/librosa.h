@@ -247,15 +247,22 @@ public:
                                               int n_fft, int n_hop, const std::string &win, bool center, const std::string &mode,
                                               float power, int n_mels, int fmin, int fmax,
                                               int n_mfcc, bool norm, int type) {
+    printf("STEP 1 \n");
     Vectorf map_x = Eigen::Map<Vectorf>(x.data(), x.size());
+    printf("STEP 2 \n");
     Matrixf mel = internal::melspectrogram(map_x, sr, n_fft, n_hop, win, center, mode, power, n_mels, fmin, fmax).transpose();
+    printf("STEP 3 \n");
     Matrixf mel_db = internal::power2db(mel);
+    printf("STEP 4 \n");
     Matrixf dct = internal::dct(mel_db, norm, type).leftCols(n_mfcc);
+    printf("STEP 5 \n");
     std::vector<std::vector<float>> mfcc_vector(dct.rows(), std::vector<float>(dct.cols(), 0.f));
+    printf("STEP 6 \n");
     for (int i = 0; i < dct.rows(); ++i) {
       auto &row = mfcc_vector[i];
       Eigen::Map<Vectorf>(row.data(), row.size()) = dct.row(i);
     }
+    printf("STEP 7 \n");
     return mfcc_vector;
   }
 };

@@ -119,7 +119,6 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
     }
 
     if (!frames.empty()) {
-        // Print the first frame in the desired format
         std::cout << "{";
         for (size_t i = 0; i < frames[0].size(); i++) {
             std::cout << frames[0][i];
