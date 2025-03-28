@@ -43,8 +43,6 @@ using namespace std;
   * @return mfcc matrix as a string 
 */
 
-
-
 void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label) {
   for (size_t rowIdx = 0; rowIdx < mfcc_matrix.size(); ++rowIdx) {
     const auto& row = mfcc_matrix[rowIdx];

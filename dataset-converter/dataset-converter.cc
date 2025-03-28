@@ -115,12 +115,19 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
     for (size_t i = 0; i + frameLength <= audio.size(); i += (frameLength - overlapLength)) {
         // Extract frame from signal
         std::vector<float> frame(audio.begin() + i, audio.begin() + i + frameLength);
-        // Exclude frame when too quiet
-        float avgAudioLevel = getAverageAudioLevel(frame);
-        if (avgAudioLevel < 0.1 && avgAudioLevel > -0.1) {
-            continue;
-        }
         frames.push_back(frame);
+    }
+
+    if (!frames.empty()) {
+        // Print the first frame in the desired format
+        std::cout << "{";
+        for (size_t i = 0; i < frames[0].size(); i++) {
+            std::cout << frames[0][i];
+            if (i != frames[0].size() - 1) {
+                std::cout << ", ";
+            }
+        }
+        std::cout << "}" << std::endl;
     }
 
     return frames;
