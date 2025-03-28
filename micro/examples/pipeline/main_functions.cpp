@@ -44,7 +44,7 @@ namespace {
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
 
-  constexpr int kTensorArenaSize = 170000;
+  constexpr int kTensorArenaSize = 37000;
   uint8_t tensor_arena[kTensorArenaSize];
   
   int x_pointer = 0; // Pointer to the current audio input data
