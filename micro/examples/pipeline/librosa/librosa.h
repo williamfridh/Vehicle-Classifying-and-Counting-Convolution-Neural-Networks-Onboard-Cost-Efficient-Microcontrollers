@@ -224,6 +224,9 @@ public:
       auto &row = mel_vector[i];
       Eigen::Map<Vectorf>(row.data(), row.size()) = mel.row(i);
     }
+
+    Matrixf().swap(mel); // Release memory used by `mel`
+
     return mel_vector;
   }
 
@@ -256,6 +259,11 @@ public:
       auto &row = mfcc_vector[i];
       Eigen::Map<Vectorf>(row.data(), row.size()) = dct.row(i);
     }
+    
+    Matrixf().swap(mel);    // Release memory used by `mel`
+    Matrixf().swap(mel_db); // Release memory used by `mel_db`
+    Matrixf().swap(dct);    // Release memory used by `dct`
+    
     return mfcc_vector;
   }
 };

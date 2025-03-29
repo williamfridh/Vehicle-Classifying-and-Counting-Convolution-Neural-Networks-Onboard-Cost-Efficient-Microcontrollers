@@ -72,6 +72,8 @@ using namespace std;
         }
     }
 
+    // Freeing memory
+    std::vector<std::vector<float>>().swap(mfcc_matrix);
 
     return mfcc_matrix_transposed;
   }
