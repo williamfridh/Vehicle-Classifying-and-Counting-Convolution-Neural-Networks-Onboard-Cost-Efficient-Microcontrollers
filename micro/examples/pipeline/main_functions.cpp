@@ -210,6 +210,7 @@ void loop() {
     std::vector<std::vector<float>> curMfcc = makeMfcc(dummyData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
     //std::vector<std::vector<float>> curMfcc = librosa::Feature::mfcc(dummyData, SAMPLE_RATE, 1024, 512, "hann", true, "reflect", 2.f, NUM_MEL_BANDS, 20, 20000, NUM_MFCC, true, 2);
     
+    // Frees memory 
     std::vector<float>().swap(dummyData);
 
     printf("Dummy data size2 %zu \n", dummyData.size());
