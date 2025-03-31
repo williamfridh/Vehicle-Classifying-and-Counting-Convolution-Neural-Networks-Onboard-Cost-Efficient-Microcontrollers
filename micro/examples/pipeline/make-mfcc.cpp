@@ -44,36 +44,16 @@ using namespace std;
 
 // Instead of taking in audio source, take in the pure audio file data
 
-  std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc, int num_mels){
+void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>& x, int sr, int num_mfcc, int num_mel) {
+  int n_fft = 1024;
+  int n_hop = 512;
+  int fmin = 20;
+  int fmax = 20000;
+  std::string pad_mode = "reflect";
+  bool norm = true;
+  int n_mfcc = num_mfcc;
+  int n_mels = num_mel;
 
-  // Values opt for change incase of optimizing the performance
-    int n_fft = 1024;
-    int n_hop = 512;
-    // Microphone used takes in audio from 20-20000 range 
-    int fmin = 20;
-    int fmax = 20000;
-    string pad_mode = "reflect"; 
-    // norm: Applying the last DCT transformation to make the mfcc 
-    bool norm = true;
-    // Amount of mfcc's, number of mels should stay the same  
-    int n_mfcc = num_mfcc;
-    int n_mels = num_mels;
-    
-
-    std::vector<std::vector<float>> mfcc_matrix = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
-
-
-    // Transpose the mfcc matrix
-    std::vector<std::vector<float>> mfcc_matrix_transposed(mfcc_matrix[0].size(), std::vector<float>(mfcc_matrix.size()));
-
-    for (size_t i = 0; i < mfcc_matrix.size(); i++) {
-        for (size_t j = 0; j < mfcc_matrix[i].size(); j++) {
-            mfcc_matrix_transposed[j][i] = mfcc_matrix[i][j];
-        }
-    }
-
-    // Freeing memory
-    std::vector<std::vector<float>>().swap(mfcc_matrix);
-
-    return mfcc_matrix_transposed;
-  }
+  // Directly save the result to curMfcc
+  curMfcc = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
+}
