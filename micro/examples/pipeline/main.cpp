@@ -25,9 +25,9 @@ int main(int argc, char* argv[]) {
   // Initialize serial communication.
   stdio_init_all();
   // Artificial delay to prevent missing first serial output(s).
-  sleep_ms(START_DELAY);
+  sleep_ms(5000);
   // Setup program.
-  setup(5000);
+  setup();
   // Check for setup errors.
   if (setupError) {
     printf("Setup failed\n");

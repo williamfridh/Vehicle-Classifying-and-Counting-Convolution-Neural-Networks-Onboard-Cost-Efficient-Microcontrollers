@@ -5,7 +5,7 @@
 #include <vector>
 
 // Function prototypes
-std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc);
+std::vector<std::vector<float>> makeMfcc(std::vector<float> x, int sr, int num_mfcc, int num_mel);
 
 void writeMfccToCsv(const std::vector<std::vector<float>>& mfcc_matrix, std::ofstream& outFile, std::string label);
 
