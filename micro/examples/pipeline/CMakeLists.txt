@@ -71,6 +71,7 @@ target_sources(pipeline
   ${CMAKE_CURRENT_LIST_DIR}/constants.h
   ${CMAKE_CURRENT_LIST_DIR}/main_functions.h
   ${CMAKE_CURRENT_LIST_DIR}/make-mfcc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/audio-processing.cc
   #${LIBROSA_HEADERS}
   ${SOURCE_FILES}
 )
