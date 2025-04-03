@@ -398,6 +398,7 @@ void classifyAudio() {
   int classificationIndex = findClassificationIndex();
   // Increment classification count
   classifications[classificationIndex]++;
+  printf("Current classification: %d", classificationIndex);
   // If not background, reset background classification
   if (classificationIndex == 0) {
     classifications[0] = 0;
