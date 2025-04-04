@@ -1,17 +1,9 @@
-/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-==============================================================================*/
+/**
+ * Main functions for the audio classification pipeline.
+ * 
+ * This file contains the main functions for the audio classification pipeline.
+ * It includes the setup and loop functions, as well as the audio processing functions.
+ */
 
 #include <vector>
 #include <iostream>
@@ -26,7 +18,6 @@ limitations under the License.
 #include <librosa/librosa.h>
 #include <cmath>
 
-
 #include "pipeline_float_model_data.h"
 #include "main_functions.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -35,64 +26,66 @@ limitations under the License.
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
+// Global variables to be used by other files.
+bool setupError = false;
 
-// Globals, used for compatibility with Arduino-style sketches.
+// File specific global variables.
 namespace {
-  const uint8_t NUM_MFCC = 16;                          // 1 B
-  const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
-  const uint16_t SAMPLE_RATE = 16000;                   // 2 B
   const tflite::Model* model = nullptr;
   tflite::MicroInterpreter* interpreter = nullptr;
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
 
+  const uint8_t NUM_MFCC = 16;                          // 1 B
+  const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
+  const uint16_t SAMPLE_RATE = 16000;                   // 2 B
   uint16_t classifications[4] = {0};                    // 8 B
 
   constexpr uint16_t kTensorArenaSize = 37000;          // 2 B
   uint8_t tensor_arena[kTensorArenaSize];               // 37000 B
   
   std::vector<std::vector<float>> curMfcc;              // 512 B         
-  std::vector<float> audioData;                        // 16000 B
+  std::vector<float> audioData;                         // 16000 B
 
-  
                                                         // Total: 53.526 KB
-}  // namespace
- 
-// Global variables, accessed by the main task.
-bool setupError = false;
+}
 
 /**
  * Prints heap information.
+ * 
+ * Prints the total heap size and the free heap size.
  */
 void printHeapInfo() {
   extern char __StackLimit, __bss_end__;
   uint32_t totalHeap = &__StackLimit - &__bss_end__;
   struct mallinfo m = mallinfo();
   uint32_t freeHeap = totalHeap - m.uordblks;
-
-  printf("Heap used: %d bytes\n", (int)totalHeap);
-  printf("Heap free: %d bytes\n", (int)freeHeap);
+  printf("s:Heap: %d / %d bytes\n", (int)totalHeap - (int)freeHeap, (int)totalHeap);
 }
 
-// The name of this function is important for Arduino compatibility.
+/**
+ * Setup function.
+ * 
+ * This function initializes the TensorFlow Lite model and allocates memory for the tensors.
+ * It also sets up the audio data and MFCC data structures.
+ */
 void setup() {
+  // Print heap information as this is at the initialization stage.
   printHeapInfo();
 
-
+  // Initialize the TensorFlow Lite library.
   tflite::InitializeTarget();
 
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
   model = tflite::GetModel(g_pipeline_float_model_data);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
-    printf("Model provided is schema version %d not equal to supported version %d.\n", model->version(), TFLITE_SCHEMA_VERSION);
+    printf("e:Model provided is schema version %d not equal to supported version %d.\n", model->version(), TFLITE_SCHEMA_VERSION);
     setupError = true;
     return;
   }
 
-  // This pulls in all the operation implementations we need.
-  // NOLINTNEXTLINE(runtime-global-variables)
-
+  // Pull all custom operations needed (based on model) into the static resolver here.
   static tflite::MicroMutableOpResolver<7> resolver;
 
   TfLiteStatus resolve_status;
@@ -153,7 +146,7 @@ void setup() {
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
-    printf("AllocateTensors() failed\n");
+    printf("e:AllocateTensors() failed\n");
     setupError = true;
     return;
   }
@@ -161,9 +154,7 @@ void setup() {
   // Print how much memory is used by model.
   size_t bytes_used = interpreter->arena_used_bytes();
   size_t bytes_free = kTensorArenaSize - bytes_used;
-  printf("Tensor arena size: %d bytes\n", kTensorArenaSize);
-  printf("Bytes used: %d bytes\n", bytes_used);
-  printf("Bytes free: %d bytes\n", bytes_free);
+  printf("s:Tensor arena size: %d/%d bytes\n", bytes_used, kTensorArenaSize);
 
   // Obtain pointers to the model's input and output tensors.
   input = interpreter->input(0);
@@ -179,19 +170,25 @@ void setup() {
   }
 
   // Print out shape of input tensor
-  printf("Input tensor shape: %d, %d, %d, %d\n", input->dims->data[0], input->dims->data[1], input->dims->data[2], input->dims->data[3]);
+  printf("s:Input tensor shape: %d, %d, %d, %d\n", input->dims->data[0], input->dims->data[1], input->dims->data[2], input->dims->data[3]);
 
   // Print out shape of output tensor
-  printf("Output tensor shape: %d, %d\n", output->dims->data[0], output->dims->data[1]);
+  printf("s:Output tensor shape: %d, %d\n", output->dims->data[0], output->dims->data[1]);
 
 }
  
-
+/**
+ * Find classification index.
+ * 
+ * This function finds the index of the maximum value in the output tensor.
+ * 
+ * @return: Index of the maximum value in the output tensor
+ */
 int findClassificationIndex(){
   int output_size = output->dims->data[1]; // Assuming 1D output array
   int max_index = 0;
   float max_value = output->data.f[0];
-  for (int i = 1; i < output_size; i++) {
+  for (int i = 0; i < output_size; i++) {
     if (output->data.f[i] > max_value) {
       max_value = output->data.f[i];
       max_index = i;
@@ -200,12 +197,17 @@ int findClassificationIndex(){
   return max_index;
 }
 
-// Used to find the most classified vechicle 
+/**
+ * Majority voting.
+ * 
+ * This function performs majority voting on the classifications array.
+ * 
+ * @return: Index of the majority classification
+ */
 int majorityVoting(){
   int tempVal = classifications[1];
   int correctClassification = 0;
-  
-  for(int i = 0; i < 4; i++){
+  for(int i = 1; i < 4; i++){
     if(classifications[i] >= tempVal){
       tempVal = classifications[i];
       correctClassification = i;
@@ -262,7 +264,7 @@ int majorityVoting(){
  void rmsNormalize(std::vector<float>& audio, float targetRMS = 0.1) {
  
      if (targetRMS < 0.1 || targetRMS > 0.3) {
-         std::cerr << "Warning: Target RMS value should be between 0.1 and 0.3" << std::endl;
+         std::cerr << "w: Target RMS value should be between 0.1 and 0.3" << std::endl;
      }
  
      float currentRMS = computeRMS(audio);
@@ -316,25 +318,38 @@ void audioProcessing(){
   normalizeAudio(audioData);
   rmsNormalize(audioData, 0.2);
   preEmphasis(audioData);
+  //printf("s:Audio processing complete\n");
 } 
 
-// Collects to audio for the loop
+/**
+ * Collect Audio.
+ */
 void collectAudio() {
   int x_pointer = 0;
   while (x_pointer < 4000) {
     float value;
     if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
-      //printf("%f, ", value);
+      //printf("f:%f\n", value);
       audioData[x_pointer] = value;
       x_pointer += 1;
-    } //else {
-      //printf("Invalid input or end of stream. Exiting collection.\n");
-      //return;
-    //}
+    } else {
+      printf("e:Invalid input or end of stream. Exiting collection.\n");
+      return;
+    }
   }
+  //printf("s:Audio data collected\n");
 }
 
-
+/**
+ * Genereate random audio data.
+ * 
+ * Populated the audioData vector with random values between -1 and 1 (float32).
+ */
+void generateRandomAudioData() {
+  for (int i = 0; i < audioData.size(); ++i) {
+    audioData[i] = static_cast<float>(rand()) / RAND_MAX * 2.0f - 1.0f; // Random float between -1 and 1
+  }
+}
 
 /** 
   * This creates the mfcc matrix 
@@ -343,7 +358,6 @@ void collectAudio() {
   * @param sr: input sample rate 
   * @return mfcc matrix 
 */
-
 void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>& x, int sr, int num_mfcc, int num_mel) {
   int n_fft = 1024;
   int n_hop = 512;
@@ -353,36 +367,41 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
   bool norm = true;
   int n_mfcc = num_mfcc;
   int n_mels = num_mel;
-
+  
+  //printf("s:Inside makeMfcc\n");
   // Directly save the result to curMfcc
   curMfcc = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
 }
 
-
-
-
+/**
+ * Classify Audio.
+ */
 void classifyAudio() {
-  printf("cstart\n");
   // Create MFCC
-  printf("Creating MFCC\n");
+  //printf("s:Creating MFCC\n");
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
-  // Copy values directly into input tensor data with transposition
-  printf("Populating input tensor...\n");
+  //printf("s:curMfcc shape: %d, %d\n", curMfcc.size(), curMfcc[0].size());
+  //printf("s:Populating input tensor with transposed data...\n");
+  // curMfss is of shape (8, 16)
+  float x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
-      for (int j = 0; j < 8; j++) {
-          input->data.f[j * 16 + i] = curMfcc[j][i]; // Transpose by swapping indices
-      }
+    for (int j = 0; j < 8; j++) {
+      x_quantized_reshaped[0][i][j][0] = curMfcc[j][i]; // Transpose the data
+    }
   }
+  // Copy the audio input data to the input tensor
+  memcpy(input->data.f, x_quantized_reshaped, sizeof(x_quantized_reshaped));
+  //printf("s:Input tensor populated\n");
   // Run inference, and report any error
   TfLiteStatus invoke_status = interpreter->Invoke();
   if (invoke_status != kTfLiteOk) {
-    printf("Invoke failed\n");
+    printf("e:Invoke failed\n");
     return;
   }
   // Ensure output tensor is valid
   TfLiteTensor* output = interpreter->output(0);
   if (output == nullptr) {
-    printf("Failed to get output tensor\n");
+    printf("e:Failed to get output tensor\n");
     return;
   }
   // Get classified index.
@@ -390,12 +409,12 @@ void classifyAudio() {
   // Increment classification count
   classifications[classificationIndex]++;
   // Code 1 for current classification
-  printf("Current classification: %d\n", classificationIndex);
+  //printf("c:Current guess: [%f, %f, %f, %f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
+  printf("c:[%d, %d, %d, %d]\n", classifications[0], classifications[1], classifications[2], classifications[3]);
   // If not background, reset background classification
-  if (classificationIndex == 0) {
+  if (classificationIndex != 0) {
     classifications[0] = 0;
   }
-  printf("cend\n");
 
 }
 
@@ -405,23 +424,27 @@ void loop() {
   // Print out heap information
   printHeapInfo();
   // Print out the current iteration
-  printf("Iteration: %d\n\n", iteraton++);
+  //printf("Iteration: %d\n", iteraton++);
   // Main function calls
   collectAudio();
+  //generateRandomAudioData();
   audioProcessing();
   classifyAudio();
   // If background is 5
   if (classifications[0] >= 5) {
-    printf("cstart\n");
+    //printf("cstart\n");
     int maxClassification = majorityVoting();
     // Print out the classification result
     //printf("Final classification: %d \n", maxClassification);
-    printf("Final clasification: %d\n", maxClassification);
-    // Reset classifications
+    if (maxClassification > 0) {
+      printf("v:%d\n", maxClassification);
+    }    // Reset classifications
     for (int i = 0; i < 4; i++) {
       classifications[i] = 0;
     }
-    printf("cend\n");
+    //printf("cend\n");
   }
 }
 
+// Must allways vote for measuring accury
+// Thus it must be able to for backgound, but not every 5 sample!
