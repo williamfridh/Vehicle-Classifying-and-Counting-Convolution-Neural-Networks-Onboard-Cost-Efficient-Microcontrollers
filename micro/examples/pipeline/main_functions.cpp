@@ -319,29 +319,19 @@ void audioProcessing(){
 } 
 
 // Collects to audio for the loop
-void collectAudio(){
+void collectAudio() {
   int x_pointer = 0;
   while (x_pointer < 4000) {
     float value;
-    if (scanf("%f", &value) == 1) {  // Read float from serial
-      printf("You entered: %f\n", value);
+    if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
+      //printf("%f, ", value);
       audioData[x_pointer] = value;
       x_pointer += 1;
-    } else {
-      //printf("Invalid input. Try again.\n");
-      // Clear the buffer
-      while (getchar() != '\n');
-      return;
-    }
+    } //else {
+      //printf("Invalid input or end of stream. Exiting collection.\n");
+      //return;
+    //}
   }
-
-  //for(int i = 0; i < 4000; i++){
-    // Collect audio data from the microphone
-    // and overwrite whats in the audio buffer
-
-    // Simulate audio data input
-    //audioData[i] = (float)(rand() % (633 - 190 + 1) - 633);
-  //}
 }
 
 
@@ -372,6 +362,7 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
 
 
 void classifyAudio() {
+  printf("cstart\n");
   // Create MFCC
   printf("Creating MFCC\n");
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
@@ -398,11 +389,14 @@ void classifyAudio() {
   int classificationIndex = findClassificationIndex();
   // Increment classification count
   classifications[classificationIndex]++;
-  printf("Current classification: %d", classificationIndex);
+  // Code 1 for current classification
+  printf("Current classification: %d\n", classificationIndex);
   // If not background, reset background classification
   if (classificationIndex == 0) {
     classifications[0] = 0;
   }
+  printf("cend\n");
+
 }
 
 // The name of this function is important for Arduino compatibility.
@@ -418,13 +412,16 @@ void loop() {
   classifyAudio();
   // If background is 5
   if (classifications[0] >= 5) {
+    printf("cstart\n");
     int maxClassification = majorityVoting();
     // Print out the classification result
-    printf("Final classification: %d \n", maxClassification);
+    //printf("Final classification: %d \n", maxClassification);
+    printf("Final clasification: %d\n", maxClassification);
     // Reset classifications
     for (int i = 0; i < 4; i++) {
       classifications[i] = 0;
     }
+    printf("cend\n");
   }
 }
 
