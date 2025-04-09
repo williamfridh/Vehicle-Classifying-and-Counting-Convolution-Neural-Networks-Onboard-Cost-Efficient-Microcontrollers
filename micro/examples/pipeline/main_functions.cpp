@@ -43,7 +43,7 @@ namespace {
   uint8_t positive_streak = 0;                          // 1 B
   uint8_t negative_streak = 0;                          // 1 B
 
-  constexpr uint16_t kTensorArenaSize = 37000;          // 2 B
+  constexpr uint32_t kTensorArenaSize = 37000;          // 2 B
   uint8_t tensor_arena[kTensorArenaSize];               // 37000 B
   
   std::vector<std::vector<float>> curMfcc;              // 512 B
@@ -159,7 +159,7 @@ int findClassificationIndex() {
 int majorityVoting() {
   int tempVal = classifications[1];
   int correctClassification = 0;
-  for (int i = 1; i < 4; i++) {
+  for (int i = 0; i < 4; i++) {
     if (classifications[i] >= tempVal) {
       tempVal = classifications[i];
       correctClassification = i;
@@ -361,7 +361,7 @@ int classifyAudio() {
   // Get classification index.
   int classificationIndex = findClassificationIndex();
   classifications[classificationIndex]++;
-  printf("c: [%f,%f,%f,%f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
+  //printf("c: [%f,%f,%f,%f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
   printf("c: [%d,%d,%d,%d]\n\n", classifications[0], classifications[1], classifications[2], classifications[3]);
   return classificationIndex;
 }
@@ -380,4 +380,29 @@ int iteration = 0;
 void loop() {
   collectAudio();
   audioProcessing();
+  
+  int classificationIndex = classifyAudio();
+  if (classificationIndex == -1) {
+    printf("e:Classification failed\n");
+    return;
+  }
+  int majorityVote = majorityVoting();
+
+  if (classIsPositive(classificationIndex)) {
+    positive_streak++;
+    negative_streak = 0;
+    if (positive_streak >= 5) {
+      if (!classIsPositive(majorityVote)) {
+        finalizeClassification(majorityVote);
+      }
+    }
+  } else {
+    negative_streak++;
+    positive_streak = 0;
+    if (negative_streak >= 5) {
+      if (classIsPositive(majorityVote)) {
+        finalizeClassification(majorityVote);
+      }
+    }
+  }
 }
