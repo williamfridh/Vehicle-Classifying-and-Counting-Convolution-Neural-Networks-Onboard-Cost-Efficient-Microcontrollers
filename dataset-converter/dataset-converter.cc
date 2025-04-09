@@ -319,9 +319,12 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         audioData = stereoToMono(audioData);
     }
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
-    audioData = normalizeAudio(audioData);
-    audioData = rmsNormalize(audioData, 0.2);
-    audioData = preEmphasis(audioData, preEmphasisAlpha);
+    // Print first 20 samples of audio data
+    std::cout << "First 20 samples of audio data: ";
+    for (size_t i = 0; i < 20 && i < audioData.size(); ++i) {
+        std::cout << audioData[i] << " ";
+    }
+    std::cout << std::endl;
 
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
@@ -331,7 +334,7 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
     fs::path filePathLabel = filePath;  
     fs::path outputFilePath = outputDir / filePathP;
     
-
+    bool printDebug = true;
     {
         std::lock_guard<std::mutex> lock(fileWriteMutex);  // Lock the mutex for file writing
 
@@ -344,6 +347,53 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         // Write frames to files
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
+
+
+
+
+
+
+
+
+            // Normalize frame data
+            frame = normalizeAudio(frame);
+            if (printDebug) {
+                // Print first 20 samples of audio data
+                std::cout << "First 20 samples of audio data: ";
+                for (size_t i = 0; i < 20 && i < frame.size(); ++i) {
+                    std::cout << frame[i] << " ";
+                }
+                std::cout << std::endl;
+            }
+            frame = rmsNormalize(frame, 0.2);
+            if (printDebug) {
+                // Print first 20 samples of audio data after normalization
+                std::cout << "First 20 samples of audio data after normalization: ";
+                for (size_t i = 0; i < 20 && i < frame.size(); ++i) {
+                    std::cout << frame[i] << " ";
+                }
+                std::cout << std::endl;
+            }
+            frame = preEmphasis(frame, preEmphasisAlpha);
+            if (printDebug) {
+                // Print first 20 samples of audio data after pre-emphasis
+                std::cout << "First 20 samples of audio data after pre-emphasis: ";
+                for (size_t i = 0; i < 20 && i < frame.size(); ++i) {
+                    std::cout << frame[i] << " ";
+                }
+                std::cout << std::endl;
+            }
+
+            printDebug = false;
+
+
+
+
+
+
+
+
+
 
             std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC, NUMBER_OF_MEL_BANDS);
 
