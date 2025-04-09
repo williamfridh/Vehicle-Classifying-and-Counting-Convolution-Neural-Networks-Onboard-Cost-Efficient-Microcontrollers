@@ -9,7 +9,7 @@
 #include <iostream>
 #include "pico/stdlib.h"
 #include "constants.h"
-#include <fstream>  
+#include <fstream>
 #include <iomanip>
 #include <chrono>
 #include <numeric>
@@ -29,7 +29,7 @@
 // Global variables to be used by other files.
 bool setupError = false;
 
-// File specific global variables.
+// File-specific global variables.
 namespace {
   const tflite::Model* model = nullptr;
   tflite::MicroInterpreter* interpreter = nullptr;
@@ -46,7 +46,7 @@ namespace {
   constexpr uint16_t kTensorArenaSize = 37000;          // 2 B
   uint8_t tensor_arena[kTensorArenaSize];               // 37000 B
   
-  std::vector<std::vector<float>> curMfcc;              // 512 B         
+  std::vector<std::vector<float>> curMfcc;              // 512 B
   std::vector<float> audioData;                         // 16000 B
 
                                                         // Total: 53.528 KB
@@ -72,7 +72,7 @@ void printHeapInfo() {
  * It also sets up the audio data and MFCC data structures.
  */
 void setup() {
-  // Print heap information as this is at the initialization stage.
+  // Print heap information at the initialization stage.
   printHeapInfo();
 
   // Initialize the TensorFlow Lite library.
@@ -87,57 +87,17 @@ void setup() {
     return;
   }
 
-  // Pull all custom operations needed (based on model) into the static resolver here.
+  // Pull all custom operations needed (based on model) into the static resolver.
   static tflite::MicroMutableOpResolver<7> resolver;
 
-  TfLiteStatus resolve_status;
-  resolve_status = resolver.AddConv2D();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add Conv2D\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddFullyConnected();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add FullyConnected\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddMaxPool2D();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add MaxPool2D\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddSoftmax();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add Softmax\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddReshape();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add Reshape\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddMul();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add Mul\n");
-      setupError = true;
-      return;
-  }
-
-  resolve_status = resolver.AddAdd();
-  if (resolve_status != kTfLiteOk) {
-      printf("Op resolver failed to add Add\n");
-      setupError = true;
-      return;
+  // Add operations to the resolver.
+  if (resolver.AddConv2D() != kTfLiteOk || resolver.AddFullyConnected() != kTfLiteOk ||
+      resolver.AddMaxPool2D() != kTfLiteOk || resolver.AddSoftmax() != kTfLiteOk ||
+      resolver.AddReshape() != kTfLiteOk || resolver.AddMul() != kTfLiteOk ||
+      resolver.AddAdd() != kTfLiteOk) {
+    printf("e:Op resolver failed to add required operations.\n");
+    setupError = true;
+    return;
   }
 
   // Build an interpreter to run the model with.
@@ -145,40 +105,30 @@ void setup() {
       model, resolver, tensor_arena, kTensorArenaSize);
   interpreter = &static_interpreter;
 
-  // Allocate memory from the tensor_arena for the model's tensors.
-  TfLiteStatus allocate_status = interpreter->AllocateTensors();
-  if (allocate_status != kTfLiteOk) {
+  // Allocate memory for the model's tensors.
+  if (interpreter->AllocateTensors() != kTfLiteOk) {
     printf("e:AllocateTensors() failed\n");
     setupError = true;
     return;
   }
 
-  // Print how much memory is used by model.
+  // Print memory usage.
   size_t bytes_used = interpreter->arena_used_bytes();
-  size_t bytes_free = kTensorArenaSize - bytes_used;
   printf("s:Tensor arena size: %d/%d bytes\n", bytes_used, kTensorArenaSize);
 
   // Obtain pointers to the model's input and output tensors.
   input = interpreter->input(0);
   output = interpreter->output(0);
 
-  // Allocate memory for audio data
+  // Allocate memory for audio data and MFCC matrix.
   audioData.resize(4000); // 4000 samples for 1 second of audio at 4000 Hz
-  
-  // Allocate memory for curMfcc
-  curMfcc.resize(8); // 16 MFCCs
-  for (int i = 0; i < 8; ++i) {
-    curMfcc[i].resize(16); // 8 MFCC features
-  }
+  curMfcc.resize(8, std::vector<float>(16)); // 8x16 MFCC matrix
 
-  // Print out shape of input tensor
+  // Print input and output tensor shapes.
   printf("s:Input tensor shape: %d, %d, %d, %d\n", input->dims->data[0], input->dims->data[1], input->dims->data[2], input->dims->data[3]);
-
-  // Print out shape of output tensor
   printf("s:Output tensor shape: %d, %d\n", output->dims->data[0], output->dims->data[1]);
-
 }
- 
+
 /**
  * Find classification index.
  * 
@@ -186,7 +136,7 @@ void setup() {
  * 
  * @return: Index of the maximum value in the output tensor
  */
-int findClassificationIndex(){
+int findClassificationIndex() {
   int output_size = output->dims->data[1]; // Assuming 1D output array
   int max_index = 0;
   float max_value = output->data.f[0];
@@ -206,11 +156,11 @@ int findClassificationIndex(){
  * 
  * @return: Index of the majority classification
  */
-int majorityVoting(){
+int majorityVoting() {
   int tempVal = classifications[1];
   int correctClassification = 0;
-  for(int i = 1; i < 4; i++){
-    if(classifications[i] >= tempVal){
+  for (int i = 1; i < 4; i++) {
+    if (classifications[i] >= tempVal) {
       tempVal = classifications[i];
       correctClassification = i;
     }
@@ -218,118 +168,107 @@ int majorityVoting(){
   return correctClassification;
 }
 
- /**
-  * Pre-Emphasis.
-  * 
-  * This function applies pre-emphasis to the audio data.
-  * 
-  * @param input: Input audio data
-  * @param audioBuffer: Buffer used for
-  * @param alpha: Pre-emphasis coefficient (default: 0.97)
-  * @return: Audio data after pre-emphasis
-  */
- void preEmphasis(std::vector<float>& input, double alpha = 0.97) {
-     if (input.empty()) return;  // Handle empty input case
- 
-     float prev = input[0];  // Store the first sample
-     for (size_t i = 1; i < input.size(); ++i) {
-         float current = input[i];
-         input[i] = input[i] - alpha * prev;  // Apply the pre-emphasis formula
-         prev = current;  // Update the previous sample
-     }
+/**
+ * Pre-Emphasis.
+ * 
+ * This function applies pre-emphasis to the audio data.
+ * 
+ * @param input: Input audio data
+ * @param alpha: Pre-emphasis coefficient (default: 0.97)
+ * @return: Audio data after pre-emphasis
+ */
+void preEmphasis(std::vector<float>& input, double alpha = 0.97) {
+  if (input.empty()) return;  // Handle empty input case
 
-     
-     printf("s:");
-     for (size_t i = 0; i < 20; i++) {
-         printf("%f ", input[i]);
-     }
-     printf("\n");
- }
- 
- /**
-  * Compute RMS.
-  * 
-  * This function computes the Root Mean Square (RMS) of the audio data.
-  * 
-  * @param audio: Audio data
-  * @return: RMS value of the audio data
-  */
- float computeRMS(const std::vector<float>& audio) {
-     float sum = 0.0;
-     for (float sample : audio) {
-         sum += sample * sample;
-     }
-     return sqrt(sum / audio.size());
- }
- 
- /**
-  * RMS Normalize.
-  * 
-  * This function normalizes the audio data to a target RMS value.
-  * 
-  * @param audio: Audio data
-  * @param targetRMS: Target RMS value (default: 0.1)
-  * @return: Nothing
-  */
- void rmsNormalize(std::vector<float>& audio, float targetRMS = 0.1) {
- 
-     if (targetRMS < 0.1 || targetRMS > 0.3) {
-         std::cerr << "w: Target RMS value should be between 0.1 and 0.3" << std::endl;
-     }
- 
-     float currentRMS = computeRMS(audio);
-     
-     // Prevent division by zero
-     if (currentRMS < 1e-8) {
-         return; // Return original audio if the RMS is too small
-     }
- 
-     float gain = targetRMS / currentRMS;
-     
-     for (size_t i = 0; i < audio.size(); i++) {
-         audio[i] = audio[i] * gain;
-     }
- }
- 
- /**
-  * Normalize to [-1, 1].
-  * 
-  * This function normalizes the audio data to the range [-1, 1].
-  * 
-  * @param audio: Audio data
-  * @return: Nothing
-  */
- void normalizeAudio(std::vector<float>& audio) {
-     // Find max sample value
-     float maxSample = 0.0;
-     for (float sample : audio) {
-         float tmp = std::abs(sample);
-         if (maxSample < tmp) {
-             maxSample = tmp;
-         }
-     }
-     // Max samle too small, return without normalizing
-     if (maxSample < 1e-8) {
-         return;
-     }
-     // Normalize audio to [-1, 1]
-     for (size_t i = 0; i < audio.size(); i++) {
-         audio[i] = audio[i] / maxSample;
-     }
- }
- 
- /**
-  * Aduio Processing.
-  * 
-  * This function makes all the calls to the seperate
-  * audio processing functions.
-  */
-void audioProcessing(){
+  float prev = input[0];  // Store the first sample
+  for (size_t i = 1; i < input.size(); ++i) {
+    float current = input[i];
+    input[i] = input[i] - alpha * prev;  // Apply the pre-emphasis formula
+    prev = current;  // Update the previous sample
+  }
+}
+
+/**
+ * Compute RMS.
+ * 
+ * This function computes the Root Mean Square (RMS) of the audio data.
+ * 
+ * @param audio: Audio data
+ * @return: RMS value of the audio data
+ */
+float computeRMS(const std::vector<float>& audio) {
+  float sum = 0.0;
+  for (float sample : audio) {
+    sum += sample * sample;
+  }
+  return sqrt(sum / audio.size());
+}
+
+/**
+ * RMS Normalize.
+ * 
+ * This function normalizes the audio data to a target RMS value.
+ * 
+ * @param audio: Audio data
+ * @param targetRMS: Target RMS value (default: 0.1)
+ * @return: Nothing
+ */
+void rmsNormalize(std::vector<float>& audio, float targetRMS = 0.1) {
+  if (targetRMS < 0.1 || targetRMS > 0.3) {
+    std::cerr << "w: Target RMS value should be between 0.1 and 0.3" << std::endl;
+  }
+
+  float currentRMS = computeRMS(audio);
+
+  // Prevent division by zero
+  if (currentRMS < 1e-8) {
+    return; // Return original audio if the RMS is too small
+  }
+
+  float gain = targetRMS / currentRMS;
+
+  for (size_t i = 0; i < audio.size(); i++) {
+    audio[i] = audio[i] * gain;
+  }
+}
+
+/**
+ * Normalize to [-1, 1].
+ * 
+ * This function normalizes the audio data to the range [-1, 1].
+ * 
+ * @param audio: Audio data
+ * @return: Nothing
+ */
+void normalizeAudio(std::vector<float>& audio) {
+  // Find max sample value
+  float maxSample = 0.0;
+  for (float sample : audio) {
+    float tmp = std::abs(sample);
+    if (maxSample < tmp) {
+      maxSample = tmp;
+    }
+  }
+  // Max sample too small, return without normalizing
+  if (maxSample < 1e-8) {
+    return;
+  }
+  // Normalize audio to [-1, 1]
+  for (size_t i = 0; i < audio.size(); i++) {
+    audio[i] = audio[i] / maxSample;
+  }
+}
+
+/**
+ * Audio Processing.
+ * 
+ * This function makes all the calls to the separate audio processing functions.
+ */
+void audioProcessing() {
   normalizeAudio(audioData);
   rmsNormalize(audioData, 0.2);
   preEmphasis(audioData);
-  //printf("s:Audio processing complete\n");
-} 
+}
 
 /**
  * Collect Audio.
@@ -339,7 +278,6 @@ void collectAudio() {
   while (x_pointer < 4000) {
     float value;
     if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
-      //printf("f:%f\n", value);
       audioData[x_pointer] = value;
       x_pointer += 1;
     } else {
@@ -347,13 +285,12 @@ void collectAudio() {
       return;
     }
   }
-  //printf("s:Audio data collected\n");
 }
 
 /**
- * Genereate random audio data.
+ * Generate random audio data.
  * 
- * Populated the audioData vector with random values between -1 and 1 (float32).
+ * Populates the audioData vector with random values between -1 and 1 (float32).
  */
 void generateRandomAudioData() {
   for (int i = 0; i < audioData.size(); ++i) {
@@ -361,13 +298,15 @@ void generateRandomAudioData() {
   }
 }
 
-/** 
-  * This creates the mfcc matrix 
-
-  * @param x: input audio 
-  * @param sr: input sample rate 
-  * @return mfcc matrix 
-*/
+/**
+ * Create MFCC matrix.
+ * 
+ * @param curMfcc: Output MFCC matrix
+ * @param x: Input audio
+ * @param sr: Input sample rate
+ * @param num_mfcc: Number of MFCC features
+ * @param num_mel: Number of Mel bands
+ */
 void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>& x, int sr, int num_mfcc, int num_mel) {
   int n_fft = 1024;
   int n_hop = 512;
@@ -377,9 +316,7 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
   bool norm = true;
   int n_mfcc = num_mfcc;
   int n_mels = num_mel;
-  
-  //printf("s:Inside makeMfcc\n");
-  // Directly save the result to curMfcc
+
   curMfcc = librosa::Feature::mfcc(x, sr, n_fft, n_hop, "hann", true, pad_mode, 2.f, n_mels, fmin, fmax, n_mfcc, norm, 2);
 }
 
@@ -392,11 +329,7 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
  * @return: True if class index is positive, false otherwise
  */
 bool classIsPositive(int classIndex) {
-  if (classIndex > 0) {
-    return true;
-  } else {
-    return false;
-  }
+  return classIndex > 0;
 }
 
 /**
@@ -407,41 +340,29 @@ bool classIsPositive(int classIndex) {
  * @return: Classification index
  */
 int classifyAudio() {
-  // Create MFCC
-  //printf("s:Creating MFCC\n");
+  // Create MFCC.
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
-  //printf("s:curMfcc shape: %d, %d\n", curMfcc.size(), curMfcc[0].size());
-  //printf("s:Populating input tensor with transposed data...\n");
-  // curMfss is of shape (8, 16)
+
+  // Transpose and populate input tensor.
   float x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 8; j++) {
-      x_quantized_reshaped[0][i][j][0] = curMfcc[j][i]; // Transpose the data
+      x_quantized_reshaped[0][i][j][0] = curMfcc[j][i];
     }
   }
-  // Copy the audio input data to the input tensor
   memcpy(input->data.f, x_quantized_reshaped, sizeof(x_quantized_reshaped));
-  //printf("s:Input tensor populated\n");
-  // Run inference, and report any error
-  TfLiteStatus invoke_status = interpreter->Invoke();
-  if (invoke_status != kTfLiteOk) {
+
+  // Run inference.
+  if (interpreter->Invoke() != kTfLiteOk) {
     printf("e:Invoke failed\n");
     return -1;
   }
-  // Ensure output tensor is valid
-  TfLiteTensor* output = interpreter->output(0);
-  if (output == nullptr) {
-    printf("e:Failed to get output tensor\n");
-    return -1;
-  }
-  // Get classified index.
+
+  // Get classification index.
   int classificationIndex = findClassificationIndex();
-  // Increment classifications.
   classifications[classificationIndex]++;
-  // Print classification
   printf("c: [%f,%f,%f,%f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
   printf("c: [%d,%d,%d,%d]\n\n", classifications[0], classifications[1], classifications[2], classifications[3]);
-  // Return classification index.
   return classificationIndex;
 }
 
@@ -455,39 +376,8 @@ void finalizeClassification(int majorityVoting) {
 }
 
 // The name of this function is important for Arduino compatibility.
-int iteraton = 0;
+int iteration = 0;
 void loop() {
-  // Print out heap information
-  //printHeapInfo();
-  // Print out the current iteration
-  //printf("Iteration: %d\n", iteraton++);
-  // Main function calls
   collectAudio();
-  //generateRandomAudioData();
   audioProcessing();
-  /*
-  int classificationIndex = classifyAudio();
-  if (classificationIndex == -1) {
-    printf("e:Classification failed\n");
-    return;
-  }
-  int majorityVote = majorityVoting();
-
-  if (classIsPositive(classificationIndex)) {
-    positive_streak++;
-    negative_streak = 0;
-    if (positive_streak >= 5) {
-      if (!classIsPositive(majorityVote)) {
-        finalizeClassification(majorityVote);
-      }
-    }
-  } else {
-    negative_streak++;
-    positive_streak = 0;
-    if (negative_streak >= 5) {
-      if (classIsPositive(majorityVote)) {
-        finalizeClassification(majorityVote);
-      }
-    }
-  }*/
 }

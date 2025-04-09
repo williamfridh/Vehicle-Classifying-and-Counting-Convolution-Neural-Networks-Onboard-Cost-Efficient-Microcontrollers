@@ -320,11 +320,11 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
     }
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
     // Print first 20 samples of audio data
-    std::cout << "First 20 samples of audio data: ";
-    for (size_t i = 0; i < 20 && i < audioData.size(); ++i) {
-        std::cout << audioData[i] << " ";
-    }
-    std::cout << std::endl;
+    //std::cout << "First 20 samples of audio data: ";
+    //for (size_t i = 0; i < 20 && i < audioData.size(); ++i) {
+    //    std::cout << audioData[i] << " ";
+    //}
+    //std::cout << std::endl;
 
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
@@ -334,7 +334,7 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
     fs::path filePathLabel = filePath;  
     fs::path outputFilePath = outputDir / filePathP;
     
-    bool printDebug = true;
+    bool printDebug = false;
     {
         std::lock_guard<std::mutex> lock(fileWriteMutex);  // Lock the mutex for file writing
 
