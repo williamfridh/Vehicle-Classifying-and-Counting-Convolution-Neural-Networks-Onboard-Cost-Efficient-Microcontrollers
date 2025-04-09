@@ -40,6 +40,8 @@ namespace {
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
   uint16_t classifications[4] = {0};                    // 8 B
+  uint8_t positive_streak = 0;                          // 1 B
+  uint8_t negative_streak = 0;                          // 1 B
 
   constexpr uint16_t kTensorArenaSize = 37000;          // 2 B
   uint8_t tensor_arena[kTensorArenaSize];               // 37000 B
@@ -47,7 +49,7 @@ namespace {
   std::vector<std::vector<float>> curMfcc;              // 512 B         
   std::vector<float> audioData;                         // 16000 B
 
-                                                        // Total: 53.526 KB
+                                                        // Total: 53.528 KB
 }
 
 /**
@@ -229,11 +231,19 @@ int majorityVoting(){
  void preEmphasis(std::vector<float>& input, double alpha = 0.97) {
      if (input.empty()) return;  // Handle empty input case
  
-     float tmp = input[0];
+     float prev = input[0];  // Store the first sample
      for (size_t i = 1; i < input.size(); ++i) {
-         input[i] = input[i] - alpha * tmp;
-         tmp = input[i];
+         float current = input[i];
+         input[i] = input[i] - alpha * prev;  // Apply the pre-emphasis formula
+         prev = current;  // Update the previous sample
      }
+
+     
+     printf("s:");
+     for (size_t i = 0; i < 20; i++) {
+         printf("%f ", input[i]);
+     }
+     printf("\n");
  }
  
  /**
@@ -374,9 +384,29 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
 }
 
 /**
- * Classify Audio.
+ * Check if class is positive.
+ * 
+ * This function checks if the class index is positive.
+ * 
+ * @param classIndex: Class index to check
+ * @return: True if class index is positive, false otherwise
  */
-void classifyAudio() {
+bool classIsPositive(int classIndex) {
+  if (classIndex > 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+/**
+ * Classify Audio.
+ * 
+ * This function classifies the audio data using the TensorFlow Lite model.
+ * 
+ * @return: Classification index
+ */
+int classifyAudio() {
   // Create MFCC
   //printf("s:Creating MFCC\n");
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
@@ -396,55 +426,68 @@ void classifyAudio() {
   TfLiteStatus invoke_status = interpreter->Invoke();
   if (invoke_status != kTfLiteOk) {
     printf("e:Invoke failed\n");
-    return;
+    return -1;
   }
   // Ensure output tensor is valid
   TfLiteTensor* output = interpreter->output(0);
   if (output == nullptr) {
     printf("e:Failed to get output tensor\n");
-    return;
+    return -1;
   }
   // Get classified index.
   int classificationIndex = findClassificationIndex();
-  // Increment classification count
+  // Increment classifications.
   classifications[classificationIndex]++;
-  // Code 1 for current classification
-  //printf("c:Current guess: [%f, %f, %f, %f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
-  printf("c:[%d, %d, %d, %d]\n", classifications[0], classifications[1], classifications[2], classifications[3]);
-  // If not background, reset background classification
-  if (classificationIndex != 0) {
-    classifications[0] = 0;
-  }
+  // Print classification
+  printf("c: [%f,%f,%f,%f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
+  printf("c: [%d,%d,%d,%d]\n\n", classifications[0], classifications[1], classifications[2], classifications[3]);
+  // Return classification index.
+  return classificationIndex;
+}
 
+void finalizeClassification(int majorityVoting) {
+  printf("v:%d\n", majorityVoting);
+  positive_streak = 0;
+  negative_streak = 0;
+  for (int i = 0; i < 4; i++) {
+    classifications[i] = 0;
+  }
 }
 
 // The name of this function is important for Arduino compatibility.
 int iteraton = 0;
 void loop() {
   // Print out heap information
-  printHeapInfo();
+  //printHeapInfo();
   // Print out the current iteration
   //printf("Iteration: %d\n", iteraton++);
   // Main function calls
   collectAudio();
   //generateRandomAudioData();
   audioProcessing();
-  classifyAudio();
-  // If background is 5
-  if (classifications[0] >= 5) {
-    //printf("cstart\n");
-    int maxClassification = majorityVoting();
-    // Print out the classification result
-    //printf("Final classification: %d \n", maxClassification);
-    if (maxClassification > 0) {
-      printf("v:%d\n", maxClassification);
-    }    // Reset classifications
-    for (int i = 0; i < 4; i++) {
-      classifications[i] = 0;
-    }
-    //printf("cend\n");
+  /*
+  int classificationIndex = classifyAudio();
+  if (classificationIndex == -1) {
+    printf("e:Classification failed\n");
+    return;
   }
-}
+  int majorityVote = majorityVoting();
 
-// Must allways vote for measuring accury
-// Thus it must be able to for backgound, but not every 5 sample!
+  if (classIsPositive(classificationIndex)) {
+    positive_streak++;
+    negative_streak = 0;
+    if (positive_streak >= 5) {
+      if (!classIsPositive(majorityVote)) {
+        finalizeClassification(majorityVote);
+      }
+    }
+  } else {
+    negative_streak++;
+    positive_streak = 0;
+    if (negative_streak >= 5) {
+      if (classIsPositive(majorityVote)) {
+        finalizeClassification(majorityVote);
+      }
+    }
+  }*/
+}
