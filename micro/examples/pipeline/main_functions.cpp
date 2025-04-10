@@ -39,7 +39,7 @@ namespace {
   const uint8_t NUM_MFCC = 16;                          // 1 B
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
-  uint16_t classifications[4] = {0};                    // 8 B
+  float softVotingPole[4] = {0};                        // 16 B
   uint8_t positive_streak = 0;                          // 1 B
   uint8_t negative_streak = 0;                          // 1 B
 
@@ -49,7 +49,13 @@ namespace {
   std::vector<std::vector<float>> curMfcc;              // 512 B
   std::vector<float> audioData;                         // 16000 B
 
-                                                        // Total: 53.528 KB
+  const uint8_t NUM_CLASSES = 4;                        // 1 B
+  const uint8_t negaticeClassIndex = 3;                 // 1 B
+
+  std::vector<std::vector<float>> lastFiveSoftVotes;    // 80 B
+  uint8_t lastFiveSoftVotesIndex = 0;                   // 1 B
+
+                                                        // Total: 53.528 KB (UPDATE!)
 }
 
 /**
@@ -123,49 +129,14 @@ void setup() {
   // Allocate memory for audio data and MFCC matrix.
   audioData.resize(4000); // 4000 samples for 1 second of audio at 4000 Hz
   curMfcc.resize(8, std::vector<float>(16)); // 8x16 MFCC matrix
+  lastFiveSoftVotes.resize(5, std::vector<float>(NUM_CLASSES)); // 5x4 soft voting matrix
+  for (int i = 0; i < 5; i++) {
+    lastFiveSoftVotes[i].resize(NUM_CLASSES, 0); // Initialize soft voting matrix
+  }
 
   // Print input and output tensor shapes.
   printf("s:Input tensor shape: %d, %d, %d, %d\n", input->dims->data[0], input->dims->data[1], input->dims->data[2], input->dims->data[3]);
   printf("s:Output tensor shape: %d, %d\n", output->dims->data[0], output->dims->data[1]);
-}
-
-/**
- * Find classification index.
- * 
- * This function finds the index of the maximum value in the output tensor.
- * 
- * @return: Index of the maximum value in the output tensor
- */
-int findClassificationIndex() {
-  int output_size = output->dims->data[1]; // Assuming 1D output array
-  int max_index = 0;
-  float max_value = output->data.f[0];
-  for (int i = 0; i < output_size; i++) {
-    if (output->data.f[i] > max_value) {
-      max_value = output->data.f[i];
-      max_index = i;
-    }
-  }
-  return max_index;
-}
-
-/**
- * Majority voting.
- * 
- * This function performs majority voting on the classifications array.
- * 
- * @return: Index of the majority classification
- */
-int majorityVoting() {
-  int tempVal = classifications[1];
-  int correctClassification = 0;
-  for (int i = 0; i < 4; i++) {
-    if (classifications[i] >= tempVal) {
-      tempVal = classifications[i];
-      correctClassification = i;
-    }
-  }
-  return correctClassification;
 }
 
 /**
@@ -178,7 +149,7 @@ int majorityVoting() {
  * @return: Audio data after pre-emphasis
  */
 void preEmphasis(std::vector<float>& input, double alpha = 0.97) {
-  if (input.empty()) return;  // Handle empty input case
+  //if (input.empty()) return;  // Handle empty input case
 
   float prev = input[0];  // Store the first sample
   for (size_t i = 1; i < input.size(); ++i) {
@@ -214,9 +185,9 @@ float computeRMS(const std::vector<float>& audio) {
  * @return: Nothing
  */
 void rmsNormalize(std::vector<float>& audio, float targetRMS = 0.1) {
-  if (targetRMS < 0.1 || targetRMS > 0.3) {
-    std::cerr << "w: Target RMS value should be between 0.1 and 0.3" << std::endl;
-  }
+  //if (targetRMS < 0.1 || targetRMS > 0.3) {
+  //  std::cerr << "w: Target RMS value should be between 0.1 and 0.3" << std::endl;
+  //}
 
   float currentRMS = computeRMS(audio);
 
@@ -257,17 +228,6 @@ void normalizeAudio(std::vector<float>& audio) {
   for (size_t i = 0; i < audio.size(); i++) {
     audio[i] = audio[i] / maxSample;
   }
-}
-
-/**
- * Audio Processing.
- * 
- * This function makes all the calls to the separate audio processing functions.
- */
-void audioProcessing() {
-  normalizeAudio(audioData);
-  rmsNormalize(audioData, 0.2);
-  preEmphasis(audioData);
 }
 
 /**
@@ -328,7 +288,7 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
   int n_fft = 1024;
   int n_hop = 512;
   int fmin = 20;
-  int fmax = 20000;
+  int fmax = 8000;
   std::string pad_mode = "reflect";
   bool norm = true;
   int n_mfcc = num_mfcc;
@@ -346,7 +306,7 @@ void makeMfcc(std::vector<std::vector<float>>& curMfcc, const std::vector<float>
  * @return: True if class index is positive, false otherwise
  */
 bool classIsPositive(int classIndex) {
-  return classIndex > 0;
+  return classIndex != negaticeClassIndex;
 }
 
 /**
@@ -375,20 +335,48 @@ int classifyAudio() {
     return -1;
   }
 
+  // Increment soft voting pole and store the output as one of the last five votes.
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    softVotingPole[i] += output->data.f[i];
+    lastFiveSoftVotes[lastFiveSoftVotesIndex][i] = output->data.f[i];
+  }
+  lastFiveSoftVotesIndex = (lastFiveSoftVotesIndex + 1) % 5;
+
   // Get classification index.
-  int classificationIndex = findClassificationIndex();
-  classifications[classificationIndex]++;
-  //printf("c: [%f,%f,%f,%f]\n", output->data.f[0], output->data.f[1], output->data.f[2], output->data.f[3]);
-  printf("c: [%d,%d,%d,%d]\n\n", classifications[0], classifications[1], classifications[2], classifications[3]);
-  return classificationIndex;
+  int lastVoteWinner = 0;
+  float max_value = output->data.f[0];
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    if (output->data.f[i] > max_value) {
+      max_value = output->data.f[i];
+      lastVoteWinner = i;
+    }
+  }
+
+  // Print current soft voting pole and last vote winner.
+  printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+
+  return lastVoteWinner;
 }
 
+/**
+ * Finalize Classification.
+ * 
+ * This function finalizes the classification based on the majority voting result.
+ * 
+ * @param majorityVoting: Majority voting result
+ */
 void finalizeClassification(int majorityVoting) {
   printf("v:%d\n", majorityVoting);
   positive_streak = 0;
   negative_streak = 0;
-  for (int i = 0; i < 4; i++) {
-    classifications[i] = 0;
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    softVotingPole[i] = 0;
+  }
+  // Sum last five soft votes and set soft voting pole to the sum.
+  for (int i = 0; i < 5; i++) {
+    for (int j = 0; j < NUM_CLASSES; j++) {
+      softVotingPole[j] += lastFiveSoftVotes[i][j];
+    }
   }
 }
 
@@ -397,18 +385,35 @@ int iteration = 0;
 void loop() {
   collectAudio();
   //collectAudioFramesUSB();
-  audioProcessing();
-  
+  normalizeAudio(audioData);
+  rmsNormalize(audioData, 0.2);
+  preEmphasis(audioData);
+
   int classificationIndex = classifyAudio();
   if (classificationIndex == -1) {
     printf("e:Classification failed\n");
     return;
   }
-  int majorityVote = majorityVoting();
+
+
+  // Majority voting
+  float maxValue = softVotingPole[0];
+  int majorityVote = 0;
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    //if (i == negaticeClassIndex) {
+    //  continue; // Skip negative class index
+    //}
+    if (softVotingPole[i] > maxValue) {
+      maxValue = softVotingPole[i];
+      majorityVote = i;
+    }
+  }
 
   if (classIsPositive(classificationIndex)) {
     positive_streak++;
-    negative_streak = 0;
+    if (positive_streak >= 2) {
+      negative_streak = 0;
+    }
     if (positive_streak >= 5) {
       if (!classIsPositive(majorityVote)) {
         finalizeClassification(majorityVote);
@@ -416,7 +421,9 @@ void loop() {
     }
   } else {
     negative_streak++;
-    positive_streak = 0;
+    if (negative_streak >= 2) {
+      positive_streak = 0;
+    }
     if (negative_streak >= 5) {
       if (classIsPositive(majorityVote)) {
         finalizeClassification(majorityVote);
