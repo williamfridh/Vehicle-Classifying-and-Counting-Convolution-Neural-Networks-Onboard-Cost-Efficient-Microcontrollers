@@ -120,7 +120,7 @@ std::tuple<std::vector<float>, int> parseAudio(const char* audio_source){
     int n_hop = 512;
     // Microphone used takes in audio from 20-20000 range 
     int fmin = 20;
-    int fmax = 20000;
+    int fmax = 8000;
     string pad_mode = "reflect"; 
     // norm: Applying the last DCT transformation to make the mfcc 
     bool norm = true;

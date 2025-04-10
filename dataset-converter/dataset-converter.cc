@@ -53,6 +53,112 @@ const float NUMBER_OF_MEL_BANDS = 32;
 
 
 /**
+ * Add random noise to audio.
+ * 
+ * This function adds random noise to the audio data.
+ * 
+ * @param audio: Audio data
+ * @param noiseLevel: Maximum noise level (default: 0.01)
+ * @return: Augmented audio data
+ */
+std::vector<float> addNoise(const std::vector<float>& audio, float noiseLevel = 0.01) {
+    std::vector<float> noisyAudio = audio;
+
+    // Compute the maximum absolute value of the audio signal
+    float maxAudioValue = 0.0f;
+    for (float sample : audio) {
+        maxAudioValue = std::max(maxAudioValue, std::abs(sample));
+    }
+
+    // Scale the noise level relative to the audio signal's magnitude
+    float scaledNoiseLevel = noiseLevel * maxAudioValue;
+
+    for (size_t i = 0; i < noisyAudio.size(); ++i) {
+        float noise = static_cast<float>(rand()) / RAND_MAX * 2.0f * scaledNoiseLevel - scaledNoiseLevel; // Noise in range [-scaledNoiseLevel, scaledNoiseLevel]
+        noisyAudio[i] += noise;
+    }
+
+    return noisyAudio;
+}
+
+/**
+ * Apply random gain to audio.
+ * 
+ * This function applies a random gain to the audio data.
+ * 
+ * @param audio: Audio data
+ * @param minGain: Minimum gain factor (default: 0.8)
+ * @param maxGain: Maximum gain factor (default: 1.2)
+ * @return: Augmented audio data
+ */
+std::vector<float> applyRandomGain(const std::vector<float>& audio, float minGain = 0.8, float maxGain = 1.2) {
+    // Compute the maximum absolute value of the audio signal
+    float maxAudioValue = 0.0f;
+    for (float sample : audio) {
+        maxAudioValue = std::max(maxAudioValue, std::abs(sample));
+    }
+
+    // Scale the gain range relative to the audio signal's magnitude
+    float scaledMinGain = minGain * maxAudioValue;
+    float scaledMaxGain = maxGain * maxAudioValue;
+
+    // Generate a random gain factor within the scaled range
+    float gain = scaledMinGain + static_cast<float>(rand()) / RAND_MAX * (scaledMaxGain - scaledMinGain);
+
+    // Apply the gain to the audio signal
+    std::vector<float> gainedAudio = audio;
+    for (float& sample : gainedAudio) {
+        sample *= gain;
+    }
+
+    return gainedAudio;
+}
+
+/**
+ * Reverse audio.
+ * 
+ * This function reverses the audio data.
+ * 
+ * @param audio: Audio data
+ * @return: Reversed audio data
+ */
+std::vector<float> reverseAudio(const std::vector<float>& audio) {
+    std::vector<float> reversedAudio = audio;
+    std::reverse(reversedAudio.begin(), reversedAudio.end());
+    return reversedAudio;
+}
+
+/**
+ * Apply audio augmentation.
+ * 
+ * This function applies a combination of audio augmentation techniques.
+ * 
+ * @param audio: Audio data
+ * @return: Augmented audio data
+ */
+std::vector<float> augmentAudio(const std::vector<float>& audio) {
+    std::vector<float> augmentedAudio = audio;
+
+    // Randomly apply noise
+    if (rand() % 2 == 0) {
+        augmentedAudio = addNoise(augmentedAudio);
+    }
+
+    // Randomly apply gain
+    if (rand() % 2 == 0) {
+        augmentedAudio = applyRandomGain(augmentedAudio);
+    }
+
+    // Randomly reverse audio
+    if (rand() % 2 == 0) {
+        augmentedAudio = reverseAudio(augmentedAudio);
+    }
+
+    return augmentedAudio;
+}
+
+
+/**
  * Convert stereo audio to mono.
  * 
  * This function converts stereo audio to mono by averaging the left and right channels.
@@ -117,9 +223,23 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
     for (size_t i = 0; i + frameLength <= audio.size(); i += (frameLength - overlapLength)) {
         // Extract frame from signal    
         std::vector<float> frame(audio.begin() + i, audio.begin() + i + frameLength);
+        // Make 4 copies of each frame and apply audio augmentation to each
+        std::vector<float> frameCopy1 = frame;
+        std::vector<float> frameCopy2 = frame;
+        std::vector<float> frameCopy3 = frame;
+        std::vector<float> frameCopy4 = frame;
+        // Apply audio augmentation to each copy
+        frameCopy1 = augmentAudio(frameCopy1);
+        frameCopy2 = augmentAudio(frameCopy2);
+        frameCopy3 = augmentAudio(frameCopy3);
+        frameCopy4 = augmentAudio(frameCopy4);
+        // Add the augmented frames to the vector
         frames.push_back(frame);
+        frames.push_back(frameCopy1);
+        frames.push_back(frameCopy2);
+        frames.push_back(frameCopy3);
+        frames.push_back(frameCopy4);
     }
-
 
     return frames;
 }
@@ -266,7 +386,6 @@ void makeFrameDirectory(std::string dirName, std::string outerDir) {
     }
 }
 
-
 /**
  * Process single file.
  * 
@@ -348,13 +467,6 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
         for (size_t i = 0; i < frames.size(); ++i) {
             std::vector<float> frame = frames[i]; 
 
-
-
-
-
-
-
-
             // Normalize frame data
             frame = normalizeAudio(frame);
             if (printDebug) {
@@ -385,15 +497,6 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
             }
 
             printDebug = false;
-
-
-
-
-
-
-
-
-
 
             std::vector<std::vector<float>> mfcc_matrix = makeMfcc(frame, targetSampleRate, NUMBER_OF_MFCC, NUMBER_OF_MEL_BANDS);
 

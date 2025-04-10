@@ -288,6 +288,23 @@ void collectAudio() {
 }
 
 /**
+ * Collect Audio.
+ */
+void collectAudioFramesUSB() {
+  int x_pointer = 0;
+  while (x_pointer < 128) {
+    float value;
+    if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
+      audioData[x_pointer] = value;
+      x_pointer += 1;
+    } else {
+      printf("e:Invalid input or end of stream. Exiting collection.\n");
+      return;
+    }
+  }
+}
+
+/**
  * Generate random audio data.
  * 
  * Populates the audioData vector with random values between -1 and 1 (float32).
@@ -379,6 +396,7 @@ void finalizeClassification(int majorityVoting) {
 int iteration = 0;
 void loop() {
   collectAudio();
+  //collectAudioFramesUSB();
   audioProcessing();
   
   int classificationIndex = classifyAudio();
