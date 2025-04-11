@@ -234,16 +234,10 @@ void normalizeAudio(std::vector<float>& audio) {
  * Collect Audio.
  */
 void collectAudio() {
-  int x_pointer = 0;
-  while (x_pointer < 4000) {
-    float value;
-    if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
-      audioData[x_pointer] = value;
-      x_pointer += 1;
-    } else {
-      printf("e:Invalid input or end of stream. Exiting collection.\n");
-      return;
-    }
+  size_t itemsRead = fread(audioData.data(), sizeof(float), audioData.size(), stdin);  // Read entire array of floats
+  if (itemsRead != audioData.size()) {
+    printf("e:Invalid input or end of stream. Exiting collection.\n");
+    return;
   }
 }
 
