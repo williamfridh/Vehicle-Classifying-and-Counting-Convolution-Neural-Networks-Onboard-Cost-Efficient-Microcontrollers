@@ -55,6 +55,9 @@ namespace {
   std::vector<std::vector<float>> lastFiveSoftVotes;    // 80 B
   uint8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
+  const float mfccMean = -9.775431;
+  const float mfccStd = 55.757645;
+
                                                         // Total: 53.528 KB (UPDATE!)
 }
 
@@ -318,16 +321,28 @@ int classifyAudio() {
   float x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 8; j++) {
-      x_quantized_reshaped[0][i][j][0] = curMfcc[j][i];
+      float mfcc = (curMfcc[j][i] - mfccMean) / mfccStd;
+      mfcc = std::clamp(mfcc, -3.0f, 3.0f);
+      int8_t quantized = static_cast<int8_t>(round(mfcc * 127.0f / 3.0f));
+      x_quantized_reshaped[0][i][j][0] = quantized;
     }
   }
   memcpy(input->data.f, x_quantized_reshaped, sizeof(x_quantized_reshaped));
+  // Measure the time it takes to run inference.
+  auto start = std::chrono::high_resolution_clock::now();
 
   // Run inference.
   if (interpreter->Invoke() != kTfLiteOk) {
     printf("e:Invoke failed\n");
     return -1;
   }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> inference_time = end - start;
+  printf("s:Inference time: %.2f ms\n", inference_time.count());
+
+  printf("s:ok\n");
+  return -1;
 
   // Increment soft voting pole and store the output as one of the last five votes.
   for (int i = 0; i < NUM_CLASSES; i++) {
@@ -347,7 +362,7 @@ int classifyAudio() {
   }
 
   // Print current soft voting pole and last vote winner.
-  printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
 
   return lastVoteWinner;
 }
@@ -388,6 +403,7 @@ void loop() {
     printf("e:Classification failed\n");
     return;
   }
+  return;
 
 
   // Majority voting
