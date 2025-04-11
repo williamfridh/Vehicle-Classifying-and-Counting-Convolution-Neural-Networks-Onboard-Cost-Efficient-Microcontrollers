@@ -39,7 +39,7 @@ namespace {
   const uint8_t NUM_MFCC = 16;                          // 1 B
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
-  float softVotingPole[4] = {0};                        // 16 B
+  uint softVotingPole[4] = {0};                        // 16 B
   uint8_t positive_streak = 0;                          // 1 B
   uint8_t negative_streak = 0;                          // 1 B
 
@@ -52,7 +52,7 @@ namespace {
   const uint8_t NUM_CLASSES = 4;                        // 1 B
   const uint8_t negaticeClassIndex = 3;                 // 1 B
 
-  std::vector<std::vector<float>> lastFiveSoftVotes;    // 80 B
+  std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
   uint8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
   const float mfccMean = -9.775431;
@@ -132,7 +132,7 @@ void setup() {
   // Allocate memory for audio data and MFCC matrix.
   audioData.resize(4000); // 4000 samples for 1 second of audio at 4000 Hz
   curMfcc.resize(8, std::vector<float>(16)); // 8x16 MFCC matrix
-  lastFiveSoftVotes.resize(5, std::vector<float>(NUM_CLASSES)); // 5x4 soft voting matrix
+  lastFiveSoftVotes.resize(5, std::vector<int>(NUM_CLASSES)); // 5x4 soft voting matrix
   for (int i = 0; i < 5; i++) {
     lastFiveSoftVotes[i].resize(NUM_CLASSES, 0); // Initialize soft voting matrix
   }
@@ -237,10 +237,16 @@ void normalizeAudio(std::vector<float>& audio) {
  * Collect Audio.
  */
 void collectAudio() {
-  size_t itemsRead = fread(audioData.data(), sizeof(float), audioData.size(), stdin);  // Read entire array of floats
-  if (itemsRead != audioData.size()) {
-    printf("e:Invalid input or end of stream. Exiting collection.\n");
-    return;
+  int x_pointer = 0;
+  while (x_pointer < 4000) {
+    float value;
+    if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
+      audioData[x_pointer] = value;
+      x_pointer += 1;
+    } else {
+      printf("e:Invalid input or end of stream. Exiting collection.\n");
+      return;
+    }
   }
 }
 
@@ -306,6 +312,29 @@ bool classIsPositive(int classIndex) {
   return classIndex != negaticeClassIndex;
 }
 
+
+int8_t normalize_and_quantize(float x) {
+  // 1. Normalize: divide by 3
+  float normalized = x / 3.0f;
+  
+  // 2. Scale to 127
+  float scaled = normalized * 127.0f;
+
+  // 3. Round to nearest integer (ties to even, like numpy)
+  float rounded = roundf(scaled);
+
+  // 4. Clip to int8_t range [-128, 127]
+  if (rounded > 127.0f) {
+      rounded = 127.0f;
+  } else if (rounded < -128.0f) {
+      rounded = -128.0f;
+  }
+
+  // 5. Cast to int8_t
+  return (int8_t)rounded;
+}
+
+
 /**
  * Classify Audio.
  * 
@@ -318,18 +347,25 @@ int classifyAudio() {
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
 
   // Transpose and populate input tensor.
-  float x_quantized_reshaped[1][16][8][1];
+  printf("s:");
+  int8_t x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 8; j++) {
       float mfcc = (curMfcc[j][i] - mfccMean) / mfccStd;
-      mfcc = std::clamp(mfcc, -3.0f, 3.0f);
-      int8_t quantized = static_cast<int8_t>(round(mfcc * 127.0f / 3.0f));
+      if (mfcc < -3.0f) {
+        mfcc = -3.0f;
+      } else if (mfcc > 3.0f) {
+        mfcc = 3.0f;
+      }
+      int8_t quantized = normalize_and_quantize(mfcc);
+      printf("%d ", quantized);
       x_quantized_reshaped[0][i][j][0] = quantized;
     }
   }
-  memcpy(input->data.f, x_quantized_reshaped, sizeof(x_quantized_reshaped));
+  printf("\n");
+  memcpy(input->data.int8, x_quantized_reshaped, sizeof(x_quantized_reshaped));
   // Measure the time it takes to run inference.
-  auto start = std::chrono::high_resolution_clock::now();
+  //auto start = std::chrono::high_resolution_clock::now();
 
   // Run inference.
   if (interpreter->Invoke() != kTfLiteOk) {
@@ -337,32 +373,38 @@ int classifyAudio() {
     return -1;
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> inference_time = end - start;
-  printf("s:Inference time: %.2f ms\n", inference_time.count());
+  //auto end = std::chrono::high_resolution_clock::now();
+  //std::chrono::duration<double, std::milli> inference_time = end - start;
+  //printf("s:Inference time: %.2f ms\n", inference_time.count());
 
-  printf("s:ok\n");
-  return -1;
+  //printf("s:ok\n");
+  //return -1;
 
   // Increment soft voting pole and store the output as one of the last five votes.
   for (int i = 0; i < NUM_CLASSES; i++) {
-    softVotingPole[i] += output->data.f[i];
-    lastFiveSoftVotes[lastFiveSoftVotesIndex][i] = output->data.f[i];
+    softVotingPole[i] += output->data.int8[i];
+    lastFiveSoftVotes[lastFiveSoftVotesIndex][i] = output->data.int8[i];
   }
   lastFiveSoftVotesIndex = (lastFiveSoftVotesIndex + 1) % 5;
 
   // Get classification index.
   int lastVoteWinner = 0;
-  float max_value = output->data.f[0];
+  int8_t min_value = output->data.int8[0];  // Use int8_t
   for (int i = 0; i < NUM_CLASSES; i++) {
-    if (output->data.f[i] > max_value) {
-      max_value = output->data.f[i];
+    if (output->data.int8[i] < min_value) {
+      min_value = output->data.int8[i];
       lastVoteWinner = i;
     }
   }
 
   // Print current soft voting pole and last vote winner.
+
   //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+
+  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+
+  printf("c: [%d,%d,%d,%d] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+
 
   return lastVoteWinner;
 }
@@ -403,18 +445,16 @@ void loop() {
     printf("e:Classification failed\n");
     return;
   }
-  return;
-
 
   // Majority voting
-  float maxValue = softVotingPole[0];
+  int min_value = softVotingPole[0];
   int majorityVote = 0;
   for (int i = 0; i < NUM_CLASSES; i++) {
     //if (i == negaticeClassIndex) {
     //  continue; // Skip negative class index
     //}
-    if (softVotingPole[i] > maxValue) {
-      maxValue = softVotingPole[i];
+    if (softVotingPole[i] < min_value) {
+      min_value = softVotingPole[i];
       majorityVote = i;
     }
   }

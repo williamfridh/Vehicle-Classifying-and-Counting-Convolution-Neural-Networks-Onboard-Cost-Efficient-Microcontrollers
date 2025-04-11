@@ -235,10 +235,10 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
         frameCopy4 = augmentAudio(frameCopy4);
         // Add the augmented frames to the vector
         frames.push_back(frame);
-        frames.push_back(frameCopy1);
-        frames.push_back(frameCopy2);
-        frames.push_back(frameCopy3);
-        frames.push_back(frameCopy4);
+        //frames.push_back(frameCopy1);
+        //frames.push_back(frameCopy2);
+        //frames.push_back(frameCopy3);
+        //frames.push_back(frameCopy4);
     }
 
     return frames;
