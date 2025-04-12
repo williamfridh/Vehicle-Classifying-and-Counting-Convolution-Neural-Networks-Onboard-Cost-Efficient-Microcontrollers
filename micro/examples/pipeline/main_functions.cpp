@@ -347,7 +347,7 @@ int classifyAudio() {
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
 
   // Transpose and populate input tensor.
-  printf("s:");
+  //printf("s:");
   int8_t x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 8; j++) {
@@ -358,11 +358,11 @@ int classifyAudio() {
         mfcc = 3.0f;
       }
       int8_t quantized = normalize_and_quantize(mfcc);
-      printf("%d ", quantized);
+      //printf("%d ", quantized);
       x_quantized_reshaped[0][i][j][0] = quantized;
     }
   }
-  printf("\n");
+  //printf("\n");
   memcpy(input->data.int8, x_quantized_reshaped, sizeof(x_quantized_reshaped));
   // Measure the time it takes to run inference.
   //auto start = std::chrono::high_resolution_clock::now();

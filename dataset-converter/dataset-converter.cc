@@ -233,12 +233,12 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
         frameCopy2 = augmentAudio(frameCopy2);
         frameCopy3 = augmentAudio(frameCopy3);
         frameCopy4 = augmentAudio(frameCopy4);
-        // Add the augmented frames to the vector
+        //// Add the augmented frames to the vector
         frames.push_back(frame);
-        //frames.push_back(frameCopy1);
-        //frames.push_back(frameCopy2);
-        //frames.push_back(frameCopy3);
-        //frames.push_back(frameCopy4);
+        frames.push_back(frameCopy1);
+        frames.push_back(frameCopy2);
+        frames.push_back(frameCopy3);
+        frames.push_back(frameCopy4);
     }
 
     return frames;
@@ -270,7 +270,7 @@ std::vector<float> resampleAudio(const std::vector<float>& inputAudio, int input
     srcData.data_in = inputAudio.data();
     srcData.input_frames = inputAudio.size();
     srcData.data_out = outputAudio.data();
-    srcData.output_frames = outputSize / channels;
+    srcData.output_frames = outputSize;
     srcData.src_ratio = ratio;
     srcData.end_of_input = 0;
 
@@ -437,13 +437,9 @@ int processFile (std::string filePath, std::string outputPath, std::string filen
     if (channels == 2) {
         audioData = stereoToMono(audioData);
     }
+    // Print audio data to console
     audioData = resampleAudio(audioData, sampleRate, targetSampleRate, channels);
-    // Print first 20 samples of audio data
-    //std::cout << "First 20 samples of audio data: ";
-    //for (size_t i = 0; i < 20 && i < audioData.size(); ++i) {
-    //    std::cout << audioData[i] << " ";
-    //}
-    //std::cout << std::endl;
+
 
     // Generate frames
     std::vector<std::vector<float>> frames = generateFrames(audioData, frameSeconds, frameOverlapSeconds, targetSampleRate);
