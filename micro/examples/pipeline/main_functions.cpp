@@ -39,7 +39,7 @@ namespace {
   const uint8_t NUM_MFCC = 16;                          // 1 B
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
-  uint softVotingPole[4] = {0};                        // 16 B
+  int softVotingPole[4] = {0};                        // 16 B
   uint8_t positive_streak = 0;                          // 1 B
   uint8_t negative_streak = 0;                          // 1 B
 
@@ -55,8 +55,8 @@ namespace {
   std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
   uint8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
-  const float mfccMean = -9.775431;
-  const float mfccStd = 55.757645;
+  const float mfccMean = -5.771239;
+  const float mfccStd = 24.030207;
 
                                                         // Total: 53.528 KB (UPDATE!)
 }
@@ -237,16 +237,10 @@ void normalizeAudio(std::vector<float>& audio) {
  * Collect Audio.
  */
 void collectAudio() {
-  int x_pointer = 0;
-  while (x_pointer < 4000) {
-    float value;
-    if (fread(&value, sizeof(float), 1, stdin) == 1) {  // Read float from binary input
-      audioData[x_pointer] = value;
-      x_pointer += 1;
-    } else {
-      printf("e:Invalid input or end of stream. Exiting collection.\n");
-      return;
-    }
+  size_t bytesRead = fread(audioData.data(), sizeof(float), audioData.size(), stdin); // Read array of floats directly into audioData
+  if (bytesRead != audioData.size()) {
+    printf("e:Invalid input or end of stream. Exiting collection.\n");
+    return;
   }
 }
 
@@ -389,10 +383,10 @@ int classifyAudio() {
 
   // Get classification index.
   int lastVoteWinner = 0;
-  int8_t min_value = output->data.int8[0];  // Use int8_t
+  int8_t max_val = output->data.int8[0];  // Use int8_t
   for (int i = 0; i < NUM_CLASSES; i++) {
-    if (output->data.int8[i] < min_value) {
-      min_value = output->data.int8[i];
+    if (output->data.int8[i] > max_val) {
+      max_val = output->data.int8[i];
       lastVoteWinner = i;
     }
   }
@@ -403,7 +397,7 @@ int classifyAudio() {
 
   //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
 
-  printf("c: [%d,%d,%d,%d] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+  //printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner, max_val);
 
 
   return lastVoteWinner;
@@ -447,24 +441,28 @@ void loop() {
   }
 
   // Majority voting
-  int min_value = softVotingPole[0];
+  //printf("s: softVotingPole = [%d, %d, %d, %d]\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3]);
+  int max_val = softVotingPole[0];
   int majorityVote = 0;
   for (int i = 0; i < NUM_CLASSES; i++) {
     //if (i == negaticeClassIndex) {
     //  continue; // Skip negative class index
     //}
-    if (softVotingPole[i] < min_value) {
-      min_value = softVotingPole[i];
+    if (softVotingPole[i] > max_val) {
+      max_val = softVotingPole[i];
       majorityVote = i;
     }
   }
+  //printf("s: Majority vote = %d, max_val = %d\n", majorityVote, max_val);
 
   if (classIsPositive(classificationIndex)) {
     positive_streak++;
     if (positive_streak >= 2) {
       negative_streak = 0;
     }
+    //printf("s:Positive streak: %d Negative streak: %d \n", positive_streak, negative_streak);
     if (positive_streak >= 5) {
+      //printf("s: Positive streak: %d Majority vote: %d\n", positive_streak, majorityVote);
       if (!classIsPositive(majorityVote)) {
         finalizeClassification(majorityVote);
       }
@@ -474,6 +472,7 @@ void loop() {
     if (negative_streak >= 2) {
       positive_streak = 0;
     }
+    //printf("s:Positive streak: %d Negative streak: %d \n", positive_streak, negative_streak);
     if (negative_streak >= 5) {
       if (classIsPositive(majorityVote)) {
         finalizeClassification(majorityVote);
