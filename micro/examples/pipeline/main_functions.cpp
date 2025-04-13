@@ -39,7 +39,7 @@ namespace {
   const uint8_t NUM_MFCC = 16;                          // 1 B
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
-  int softVotingPole[4] = {0};                        // 16 B
+  int softVotingPool[4] = {0};                        // 16 B
   uint8_t positive_streak = 0;                          // 1 B
   uint8_t negative_streak = 0;                          // 1 B
 
@@ -53,7 +53,7 @@ namespace {
   const uint8_t negaticeClassIndex = 3;                 // 1 B
 
   std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
-  uint8_t lastFiveSoftVotesIndex = 0;                   // 1 B
+  int8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
   const float mfccMean = -5.771239;
   const float mfccStd = 24.030207;
@@ -374,9 +374,12 @@ int classifyAudio() {
   //printf("s:ok\n");
   //return -1;
 
-  // Increment soft voting pole and store the output as one of the last five votes.
+  // Increment soft voting pool and store the output as one of the last five votes.
   for (int i = 0; i < NUM_CLASSES; i++) {
-    softVotingPole[i] += output->data.int8[i];
+    softVotingPool[i] += output->data.int8[i];
+    //if(softVotingPool[i] > ){
+    //}
+
     lastFiveSoftVotes[lastFiveSoftVotesIndex][i] = output->data.int8[i];
   }
   lastFiveSoftVotesIndex = (lastFiveSoftVotesIndex + 1) % 5;
@@ -393,11 +396,11 @@ int classifyAudio() {
 
   // Print current soft voting pole and last vote winner.
 
-  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner);
 
-  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner);
+  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner);
 
-  //printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3], lastVoteWinner, max_val);
+  //printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner, max_val);
 
 
   return lastVoteWinner;
@@ -415,24 +418,50 @@ void finalizeClassification(int majorityVoting) {
   positive_streak = 0;
   negative_streak = 0;
   for (int i = 0; i < NUM_CLASSES; i++) {
-    softVotingPole[i] = 0;
+    softVotingPool[i] = 0;
   }
   // Sum last five soft votes and set soft voting pole to the sum.
   for (int i = 0; i < 5; i++) {
     for (int j = 0; j < NUM_CLASSES; j++) {
-      softVotingPole[j] += lastFiveSoftVotes[i][j];
+      softVotingPool[j] += lastFiveSoftVotes[i][j];
     }
   }
 }
 
+
+int64_t total_elapsed_us1 = 0;
+int64_t total_elapsed_us2 = 0;
+int64_t total_elapsed_us3 = 0;
+
 // The name of this function is important for Arduino compatibility.
-int iteration = 0;
+int totalLoops = 0;
 void loop() {
+  // Start timestamp
+  absolute_time_t start1 = get_absolute_time();
+  
   collectAudio();
+
+  absolute_time_t end1 = get_absolute_time();
+
+  int64_t elapsed_us1 = absolute_time_diff_us(start1, end1);
+  total_elapsed_us1 += elapsed_us1;
+
+
   //collectAudioFramesUSB();
+
+  
+  absolute_time_t start2 = get_absolute_time();
+  
   normalizeAudio(audioData);
   rmsNormalize(audioData, 0.2);
   preEmphasis(audioData);
+
+  absolute_time_t end2 = get_absolute_time();
+  int64_t elapsed_us2 = absolute_time_diff_us(start2, end2);
+  total_elapsed_us2 += elapsed_us2;
+
+
+  absolute_time_t start3 = get_absolute_time();
 
   int classificationIndex = classifyAudio();
   if (classificationIndex == -1) {
@@ -441,15 +470,15 @@ void loop() {
   }
 
   // Majority voting
-  //printf("s: softVotingPole = [%d, %d, %d, %d]\n", softVotingPole[0], softVotingPole[1], softVotingPole[2], softVotingPole[3]);
-  int max_val = softVotingPole[0];
+  //printf("s: softVotingPool = [%d, %d, %d, %d]\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3]);
+  int max_val = softVotingPool[0];
   int majorityVote = 0;
   for (int i = 0; i < NUM_CLASSES; i++) {
     //if (i == negaticeClassIndex) {
     //  continue; // Skip negative class index
     //}
-    if (softVotingPole[i] > max_val) {
-      max_val = softVotingPole[i];
+    if (softVotingPool[i] > max_val) {
+      max_val = softVotingPool[i];
       majorityVote = i;
     }
   }
@@ -479,4 +508,23 @@ void loop() {
       }
     }
   }
+
+  absolute_time_t end3 = get_absolute_time();
+  int64_t elapsed_us3 = absolute_time_diff_us(start3, end3);
+  total_elapsed_us3 += elapsed_us3;
+  printf("c:COUNT --------------------------------------------- %d \n" , totalLoops);
+
+  if (totalLoops > 1000)
+  {
+    double avg_elapsed_us1 = total_elapsed_us1 / (double)totalLoops;
+    double avg_elapsed_us2 = total_elapsed_us2 / (double)totalLoops;
+    double avg_elapsed_us3 = total_elapsed_us3 / (double)totalLoops;
+
+    printf("c:===== AVERAGE ELAPSED TIMES OVER %d RUNS =====\n", totalLoops);
+    printf("c:Average Collecting Audio:       %.2f us\n", avg_elapsed_us1);
+    printf("c:Average Preprocessing Audio:    %.2f us\n", avg_elapsed_us2);
+    printf("c:Average Classifying Audio:      %.2f us\n", avg_elapsed_us3);
+    printf("fin:");
+  }
+  totalLoops++;
 }
