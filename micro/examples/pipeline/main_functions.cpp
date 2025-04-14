@@ -55,9 +55,15 @@ namespace {
   std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
   int8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
-  const float mfccMean = -5.771239;
-  const float mfccStd = 24.030207;
+  const float mfccMean = -5.8009987;
+  const float mfccStd = 25.030596;
 
+  int64_t total_elapsed_us1 = 0;
+  int64_t total_elapsed_us2 = 0;
+  int64_t total_elapsed_us3 = 0;
+  int64_t total_elapsed_us4 = 0;
+  int64_t total_elapsed_us5 = 0;
+  int64_t total_elapsed_us6 = 0;
                                                         // Total: 53.528 KB (UPDATE!)
 }
 
@@ -361,12 +367,20 @@ int classifyAudio() {
   // Measure the time it takes to run inference.
   //auto start = std::chrono::high_resolution_clock::now();
 
+
+  absolute_time_t start6 = get_absolute_time();
+
   // Run inference.
   if (interpreter->Invoke() != kTfLiteOk) {
     printf("e:Invoke failed\n");
     return -1;
   }
+  
+  absolute_time_t end6 = get_absolute_time();
+  int64_t elapsed_us6 = absolute_time_diff_us(start6, end6);
+  total_elapsed_us6 += elapsed_us6;
 
+  
   //auto end = std::chrono::high_resolution_clock::now();
   //std::chrono::duration<double, std::milli> inference_time = end - start;
   //printf("s:Inference time: %.2f ms\n", inference_time.count());
@@ -400,7 +414,7 @@ int classifyAudio() {
 
   //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner);
 
-  //printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner, max_val);
+  printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner, max_val);
 
 
   return lastVoteWinner;
@@ -429,9 +443,6 @@ void finalizeClassification(int majorityVoting) {
 }
 
 
-int64_t total_elapsed_us1 = 0;
-int64_t total_elapsed_us2 = 0;
-int64_t total_elapsed_us3 = 0;
 
 // The name of this function is important for Arduino compatibility.
 int totalLoops = 0;
@@ -442,32 +453,45 @@ void loop() {
   collectAudio();
 
   absolute_time_t end1 = get_absolute_time();
-
   int64_t elapsed_us1 = absolute_time_diff_us(start1, end1);
   total_elapsed_us1 += elapsed_us1;
-
-
   //collectAudioFramesUSB();
 
-  
   absolute_time_t start2 = get_absolute_time();
   
   normalizeAudio(audioData);
-  rmsNormalize(audioData, 0.2);
-  preEmphasis(audioData);
 
   absolute_time_t end2 = get_absolute_time();
   int64_t elapsed_us2 = absolute_time_diff_us(start2, end2);
   total_elapsed_us2 += elapsed_us2;
 
-
   absolute_time_t start3 = get_absolute_time();
+
+  rmsNormalize(audioData, 0.2);
+
+  absolute_time_t end3 = get_absolute_time();
+  int64_t elapsed_us3 = absolute_time_diff_us(start3, end3);
+  total_elapsed_us3 += elapsed_us3;
+
+  absolute_time_t start4 = get_absolute_time();
+
+  preEmphasis(audioData);
+
+  absolute_time_t end4 = get_absolute_time();
+  int64_t elapsed_us4 = absolute_time_diff_us(start4, end4);
+  total_elapsed_us4 += elapsed_us4;
+
+
 
   int classificationIndex = classifyAudio();
   if (classificationIndex == -1) {
     printf("e:Classification failed\n");
     return;
   }
+
+
+  
+  absolute_time_t start5 = get_absolute_time();
 
   // Majority voting
   //printf("s: softVotingPool = [%d, %d, %d, %d]\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3]);
@@ -509,21 +533,27 @@ void loop() {
     }
   }
 
-  absolute_time_t end3 = get_absolute_time();
-  int64_t elapsed_us3 = absolute_time_diff_us(start3, end3);
-  total_elapsed_us3 += elapsed_us3;
-  printf("c:COUNT --------------------------------------------- %d \n" , totalLoops);
+  absolute_time_t end5 = get_absolute_time();
+  int64_t elapsed_us5 = absolute_time_diff_us(start5, end5);
+  total_elapsed_us5 += elapsed_us5;
+  //printf("c:COUNT --------------------------------------------- %d \n" , totalLoops);
 
   if (totalLoops > 1000)
   {
     double avg_elapsed_us1 = total_elapsed_us1 / (double)totalLoops;
     double avg_elapsed_us2 = total_elapsed_us2 / (double)totalLoops;
     double avg_elapsed_us3 = total_elapsed_us3 / (double)totalLoops;
+    double avg_elapsed_us4 = total_elapsed_us4 / (double)totalLoops;
+    double avg_elapsed_us5 = total_elapsed_us5 / (double)totalLoops;
+    double avg_elapsed_us6 = total_elapsed_us6 / (double)totalLoops;
 
     printf("c:===== AVERAGE ELAPSED TIMES OVER %d RUNS =====\n", totalLoops);
     printf("c:Average Collecting Audio:       %.2f us\n", avg_elapsed_us1);
-    printf("c:Average Preprocessing Audio:    %.2f us\n", avg_elapsed_us2);
-    printf("c:Average Classifying Audio:      %.2f us\n", avg_elapsed_us3);
+    printf("c:Average normalize Audio:       %.2f us\n", avg_elapsed_us2);
+    printf("c:Average RMS normalize Audio:       %.2f us\n", avg_elapsed_us3);
+    printf("c:Average preemphesis Audio:    %.2f us\n", avg_elapsed_us4);
+    printf("c:Average voting Audio:      %.2f us\n", avg_elapsed_us5);
+    printf("c:Average Classifying Audio(invoke):      %.2f us\n", avg_elapsed_us6);
     printf("fin:");
   }
   totalLoops++;
