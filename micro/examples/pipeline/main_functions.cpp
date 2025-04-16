@@ -39,9 +39,7 @@ namespace {
   const uint8_t NUM_MFCC = 16;                          // 1 B
   const uint8_t NUM_MEL_BANDS = 32;                     // 1 B
   const uint16_t SAMPLE_RATE = 16000;                   // 2 B
-  int softVotingPool[4] = {0};                        // 16 B
-  uint8_t positive_streak = 0;                          // 1 B
-  uint8_t negative_streak = 0;                          // 1 B
+  int softVotingPool[4] = {0};                          // 16 B
 
   constexpr uint32_t kTensorArenaSize = 37000;          // 2 B
   uint8_t tensor_arena[kTensorArenaSize];               // 37000 B
@@ -52,11 +50,9 @@ namespace {
   const uint8_t NUM_CLASSES = 4;                        // 1 B
   const uint8_t negaticeClassIndex = 3;                 // 1 B
 
-  std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
-  int8_t lastFiveSoftVotesIndex = 0;                   // 1 B
-
-  std::vector<std::vector<int>> lastTwelveSoftVotes;   // 80 B
-  int8_t lastTwelveSoftVotesIndex = 0;                 // 1 B
+  std::vector<std::vector<int>> lastXSoftVotes;         // ? B
+  int8_t lastXSoftVotesIndex = 0;                       // 1 B
+  int8_t lastXVoteAmount = 5;                           // 1 B
 
   uint8_t lastVotePostitive = 2;                        // 1 B
 
@@ -69,7 +65,6 @@ namespace {
   int64_t total_elapsed_us4 = 0;
   int64_t total_elapsed_us5 = 0;
   int64_t total_elapsed_us6 = 0;
-                                                        // Total: 53.528 KB (UPDATE!)
 }
 
 /**
@@ -143,9 +138,9 @@ void setup() {
   // Allocate memory for audio data and MFCC matrix.
   audioData.resize(4000); // 4000 samples for 1 second of audio at 4000 Hz
   curMfcc.resize(8, std::vector<float>(16)); // 8x16 MFCC matrix
-  lastFiveSoftVotes.resize(5, std::vector<int>(NUM_CLASSES)); // 5x4 soft voting matrix
-  for (int i = 0; i < 5; i++) {
-    lastFiveSoftVotes[i].resize(NUM_CLASSES, 0); // Initialize soft voting matrix
+  lastXSoftVotes.resize(lastXVoteAmount, std::vector<int>(NUM_CLASSES)); // X*4 soft voting matrix
+  for (int i = 0; i < lastXVoteAmount; i++) {
+    lastXSoftVotes[i].resize(NUM_CLASSES, 0); // Initialize soft voting matrix
   }
 
   // Print input and output tensor shapes.
@@ -352,7 +347,6 @@ int classifyAudio() {
   makeMfcc(curMfcc, audioData, SAMPLE_RATE, NUM_MFCC, NUM_MEL_BANDS);
 
   // Transpose and populate input tensor.
-  //printf("s:");
   int8_t x_quantized_reshaped[1][16][8][1];
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 8; j++) {
@@ -363,15 +357,13 @@ int classifyAudio() {
         mfcc = 3.0f;
       }
       int8_t quantized = normalize_and_quantize(mfcc);
-      //printf("%d ", quantized);
       x_quantized_reshaped[0][i][j][0] = quantized;
     }
   }
-  //printf("\n");
+  
   memcpy(input->data.int8, x_quantized_reshaped, sizeof(x_quantized_reshaped));
   // Measure the time it takes to run inference.
   //auto start = std::chrono::high_resolution_clock::now();
-
 
   absolute_time_t start6 = get_absolute_time();
 
@@ -385,23 +377,12 @@ int classifyAudio() {
   int64_t elapsed_us6 = absolute_time_diff_us(start6, end6);
   total_elapsed_us6 += elapsed_us6;
 
-  
-  //auto end = std::chrono::high_resolution_clock::now();
-  //std::chrono::duration<double, std::milli> inference_time = end - start;
-  //printf("s:Inference time: %.2f ms\n", inference_time.count());
-
-  //printf("s:ok\n");
-  //return -1;
-
   // Increment soft voting pool and store the output as one of the last five votes.
   for (int i = 0; i < NUM_CLASSES; i++) {
     softVotingPool[i] += output->data.int8[i];
-    //if(softVotingPool[i] > ){
-    //}
-
-    lastFiveSoftVotes[lastFiveSoftVotesIndex][i] = output->data.int8[i];
+    lastXSoftVotes[lastXSoftVotesIndex][i] = output->data.int8[i];
   }
-  lastFiveSoftVotesIndex = (lastFiveSoftVotesIndex + 1) % 5;
+  lastXSoftVotesIndex = (lastXSoftVotesIndex + 1) % lastXVoteAmount;
 
   // Get classification index.
   int lastVoteWinner = 0;
@@ -413,14 +394,7 @@ int classifyAudio() {
     }
   }
 
-  // Print current soft voting pole and last vote winner.
-
-  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner);
-
-  //printf("c: [%f,%f,%f,%f] voted for: %d\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner);
-
   printf("c: [%d,%d,%d,%d] voted for: %d max value: %d \n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3], lastVoteWinner, max_val);
-
 
   return lastVoteWinner;
 }
@@ -428,31 +402,26 @@ int classifyAudio() {
 /**
  * Finalize Classification.
  * 
- * This function finalizes the classification based on the majority voting result.
+ * This function finalizes the classification based on the plurality voting result.
  * 
- * @param majorityVoting: Majority voting result
+ * @param pluralityVoting: Plurality voting result
  */
-void finalizeClassification(int majorityVoteMinusFiveLast, int majorityVoteLastFive) {
+void finalizeClassification(int pluralityVoteMinusFiveLast, int pluralityVoteLastFive) {
 
-  if (classIsPositive(majorityVoteLastFive) == classIsPositive(majorityVoteMinusFiveLast)) {
-    return; // Skip if the same class is voted again
+  if (lastVotePostitive == 2) {
+    lastVotePostitive = classIsPositive(pluralityVoteMinusFiveLast) ? 1 : 0;
+  } else {
+    lastVotePostitive = lastVotePostitive == 1 ? 0 : 1;
   }
 
-  if (classIsPositive(majorityVoteMinusFiveLast) == lastVotePostitive) {
-    return; // Skip if the same class is voted again
-  }
-  lastVotePostitive = classIsPositive(majorityVoteMinusFiveLast) ? 1 : 0;
-
-  printf("v:%d\n", majorityVoteMinusFiveLast);
-  //positive_streak = 0;
-  //negative_streak = 0;
+  printf("v:%d\n", pluralityVoteMinusFiveLast);
   for (int i = 0; i < NUM_CLASSES; i++) {
     softVotingPool[i] = 0;
   }
   // Sum last five soft votes and set soft voting pole to the sum.
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < lastXVoteAmount; i++) {
     for (int j = 0; j < NUM_CLASSES; j++) {
-      softVotingPool[j] += lastFiveSoftVotes[i][j];
+      softVotingPool[j] += lastXSoftVotes[i][j];
     }
   }
 }
@@ -496,86 +465,64 @@ void loop() {
   int64_t elapsed_us4 = absolute_time_diff_us(start4, end4);
   total_elapsed_us4 += elapsed_us4;
 
-
-
   int classificationIndex = classifyAudio();
   if (classificationIndex == -1) {
     printf("e:Classification failed\n");
     return;
   }
 
-
-  
   absolute_time_t start5 = get_absolute_time();
 
   // Combine five last soft votes and set soft voting pole to the sum.
-  int lastFiveSoftVotesCombined[NUM_CLASSES] = {0};
-  for (int i = 0; i < 5; i++) {
+  int lastXSoftVotesCombined[NUM_CLASSES] = {0};
+  for (int i = 0; i < lastXVoteAmount; i++) {
     for (int j = 0; j < NUM_CLASSES; j++) {
-      lastFiveSoftVotesCombined[j] += lastFiveSoftVotes[i][j];
+      lastXSoftVotesCombined[j] += lastXSoftVotes[i][j];
     }
   }
 
-  // Get majority vote from the last five soft votes.
-  int majorityVoteLastFive = 0;
-  int max_val = lastFiveSoftVotesCombined[0];  // Use int8_t
+  // Get plurality vote from the last five soft votes.
+  int pluralityVoteLastFive = 0;
+  int max_val = lastXSoftVotesCombined[0];  // Use int8_t
   for (int i = 0; i < NUM_CLASSES; i++) {
-    if (lastFiveSoftVotesCombined[i] > max_val) {
-      max_val = lastFiveSoftVotesCombined[i];
-      majorityVoteLastFive = i;
+    if (lastXSoftVotesCombined[i] > max_val) {
+      max_val = lastXSoftVotesCombined[i];
+      pluralityVoteLastFive = i;
     }
   }
 
   // Copy softVoteing pool to last five soft votes.
   int softVotePoolMinusFiveLast[NUM_CLASSES] = {0};
   for (int i = 0; i < NUM_CLASSES; i++) {
-    softVotePoolMinusFiveLast[i] = softVotingPool[i] - lastFiveSoftVotesCombined[i];
+    softVotePoolMinusFiveLast[i] = softVotingPool[i] - lastXSoftVotesCombined[i];
   }
 
-  // Get majority vote from the soft voting pool minus last five votes.
-  int majorityVoteMinusFiveLast = 0;
+  // Get plurality vote from the soft voting pool minus last five votes.
+  int pluralityVoteMinusFiveLast = 0;
   max_val = softVotePoolMinusFiveLast[0];  // Use int8_t
   for (int i = 0; i < NUM_CLASSES; i++) {
     if (softVotePoolMinusFiveLast[i] > max_val) {
       max_val = softVotePoolMinusFiveLast[i];
-      majorityVoteMinusFiveLast = i;
+      pluralityVoteMinusFiveLast = i;
     }
   }
 
-  if (classIsPositive(classificationIndex)) {
-    bool trigger = false; // Remove?
-    if (positive_streak == 4) {
-      trigger = true;
-    }
-    if (positive_streak < 5) {
-      positive_streak++;
-    }
-    if (positive_streak >= 2 && negative_streak > 0) {
-      negative_streak--;
-    }
-    if (trigger & positive_streak == 5) {
-      finalizeClassification(majorityVoteMinusFiveLast, majorityVoteLastFive);
-    }
-  } else {
-    bool trigger = false; // Remove?
-    if (negative_streak == 4) {
-      trigger = true;
-    }
-    if (negative_streak < 5) {
-      negative_streak++;
-    }
-    if (negative_streak >= 2 && positive_streak > 0) {
-      positive_streak--;
-    }
-    if (trigger & negative_streak == 5) {
-      finalizeClassification(majorityVoteMinusFiveLast, majorityVoteLastFive);
-    }
+  // Here we determine if we have a new classification.
+  // If the classification of the last votes (minus last five votes) is different
+  // from the last five votes, we have a new classification. But this should only be
+  // sent to finalizeClassification if the last five votes as the last votes minus
+  // the last five votes. Meaning, it wont classify unless it detects a switch in audio.
+  if (
+    ( classIsPositive(pluralityVoteMinusFiveLast) != lastVotePostitive ||
+    lastVotePostitive == 2 ) &&
+    classIsPositive(pluralityVoteMinusFiveLast) != classIsPositive(pluralityVoteLastFive)
+  ) {
+    finalizeClassification(pluralityVoteMinusFiveLast, pluralityVoteLastFive);
   }
 
   absolute_time_t end5 = get_absolute_time();
   int64_t elapsed_us5 = absolute_time_diff_us(start5, end5);
   total_elapsed_us5 += elapsed_us5;
-  //printf("c:COUNT --------------------------------------------- %d \n" , totalLoops);
 
   if (totalLoops % 1000 == 0 && totalLoops > 0)
   {
