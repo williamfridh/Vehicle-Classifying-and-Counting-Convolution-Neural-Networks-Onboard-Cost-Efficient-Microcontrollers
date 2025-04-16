@@ -55,6 +55,11 @@ namespace {
   std::vector<std::vector<int>> lastFiveSoftVotes;    // 80 B
   int8_t lastFiveSoftVotesIndex = 0;                   // 1 B
 
+  std::vector<std::vector<int>> lastTwelveSoftVotes;   // 80 B
+  int8_t lastTwelveSoftVotesIndex = 0;                 // 1 B
+
+  uint8_t lastVotePostitive = 2;                        // 1 B
+
   const float mfccMean = -5.8009987;
   const float mfccStd = 25.030596;
 
@@ -427,10 +432,20 @@ int classifyAudio() {
  * 
  * @param majorityVoting: Majority voting result
  */
-void finalizeClassification(int majorityVoting) {
-  printf("v:%d\n", majorityVoting);
-  positive_streak = 0;
-  negative_streak = 0;
+void finalizeClassification(int majorityVoteMinusFiveLast, int majorityVoteLastFive) {
+
+  if (classIsPositive(majorityVoteLastFive) == classIsPositive(majorityVoteMinusFiveLast)) {
+    return; // Skip if the same class is voted again
+  }
+
+  if (classIsPositive(majorityVoteMinusFiveLast) == lastVotePostitive) {
+    return; // Skip if the same class is voted again
+  }
+  lastVotePostitive = classIsPositive(majorityVoteMinusFiveLast) ? 1 : 0;
+
+  printf("v:%d\n", majorityVoteMinusFiveLast);
+  //positive_streak = 0;
+  //negative_streak = 0;
   for (int i = 0; i < NUM_CLASSES; i++) {
     softVotingPool[i] = 0;
   }
@@ -493,43 +508,67 @@ void loop() {
   
   absolute_time_t start5 = get_absolute_time();
 
-  // Majority voting
-  //printf("s: softVotingPool = [%d, %d, %d, %d]\n", softVotingPool[0], softVotingPool[1], softVotingPool[2], softVotingPool[3]);
-  int max_val = softVotingPool[0];
-  int majorityVote = 0;
-  for (int i = 0; i < NUM_CLASSES; i++) {
-    //if (i == negaticeClassIndex) {
-    //  continue; // Skip negative class index
-    //}
-    if (softVotingPool[i] > max_val) {
-      max_val = softVotingPool[i];
-      majorityVote = i;
+  // Combine five last soft votes and set soft voting pole to the sum.
+  int lastFiveSoftVotesCombined[NUM_CLASSES] = {0};
+  for (int i = 0; i < 5; i++) {
+    for (int j = 0; j < NUM_CLASSES; j++) {
+      lastFiveSoftVotesCombined[j] += lastFiveSoftVotes[i][j];
     }
   }
-  //printf("s: Majority vote = %d, max_val = %d\n", majorityVote, max_val);
+
+  // Get majority vote from the last five soft votes.
+  int majorityVoteLastFive = 0;
+  int max_val = lastFiveSoftVotesCombined[0];  // Use int8_t
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    if (lastFiveSoftVotesCombined[i] > max_val) {
+      max_val = lastFiveSoftVotesCombined[i];
+      majorityVoteLastFive = i;
+    }
+  }
+
+  // Copy softVoteing pool to last five soft votes.
+  int softVotePoolMinusFiveLast[NUM_CLASSES] = {0};
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    softVotePoolMinusFiveLast[i] = softVotingPool[i] - lastFiveSoftVotesCombined[i];
+  }
+
+  // Get majority vote from the soft voting pool minus last five votes.
+  int majorityVoteMinusFiveLast = 0;
+  max_val = softVotePoolMinusFiveLast[0];  // Use int8_t
+  for (int i = 0; i < NUM_CLASSES; i++) {
+    if (softVotePoolMinusFiveLast[i] > max_val) {
+      max_val = softVotePoolMinusFiveLast[i];
+      majorityVoteMinusFiveLast = i;
+    }
+  }
 
   if (classIsPositive(classificationIndex)) {
-    positive_streak++;
-    if (positive_streak >= 2) {
-      negative_streak = 0;
+    bool trigger = false; // Remove?
+    if (positive_streak == 4) {
+      trigger = true;
     }
-    //printf("s:Positive streak: %d Negative streak: %d \n", positive_streak, negative_streak);
-    if (positive_streak >= 5) {
-      //printf("s: Positive streak: %d Majority vote: %d\n", positive_streak, majorityVote);
-      if (!classIsPositive(majorityVote)) {
-        finalizeClassification(majorityVote);
-      }
+    if (positive_streak < 5) {
+      positive_streak++;
+    }
+    if (positive_streak >= 2 && negative_streak > 0) {
+      negative_streak--;
+    }
+    if (trigger & positive_streak == 5) {
+      finalizeClassification(majorityVoteMinusFiveLast, majorityVoteLastFive);
     }
   } else {
-    negative_streak++;
-    if (negative_streak >= 2) {
-      positive_streak = 0;
+    bool trigger = false; // Remove?
+    if (negative_streak == 4) {
+      trigger = true;
     }
-    //printf("s:Positive streak: %d Negative streak: %d \n", positive_streak, negative_streak);
-    if (negative_streak >= 5) {
-      if (classIsPositive(majorityVote)) {
-        finalizeClassification(majorityVote);
-      }
+    if (negative_streak < 5) {
+      negative_streak++;
+    }
+    if (negative_streak >= 2 && positive_streak > 0) {
+      positive_streak--;
+    }
+    if (trigger & negative_streak == 5) {
+      finalizeClassification(majorityVoteMinusFiveLast, majorityVoteLastFive);
     }
   }
 
@@ -538,7 +577,7 @@ void loop() {
   total_elapsed_us5 += elapsed_us5;
   //printf("c:COUNT --------------------------------------------- %d \n" , totalLoops);
 
-  if (totalLoops > 1000)
+  if (totalLoops % 1000 == 0 && totalLoops > 0)
   {
     double avg_elapsed_us1 = total_elapsed_us1 / (double)totalLoops;
     double avg_elapsed_us2 = total_elapsed_us2 / (double)totalLoops;
