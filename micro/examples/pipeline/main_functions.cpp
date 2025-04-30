@@ -48,16 +48,17 @@ namespace {
   std::vector<float> audioData;                         // 16000 B
 
   const uint8_t NUM_CLASSES = 4;                        // 1 B
-  const uint8_t negaticeClassIndex = 3;                 // 1 B
+  const uint8_t negaticeClassIndex = 0;                 // 1 B
 
   std::vector<std::vector<int>> lastXSoftVotes;         // ? B
   int8_t lastXSoftVotesIndex = 0;                       // 1 B
   int8_t lastXVoteAmount = 5;                           // 1 B
+  int8_t minVotesBeforeClassify = 5;                     // 1 B
 
   uint8_t lastVotePostitive = 2;                        // 1 B
 
-  const float mfccMean = -5.8009987;
-  const float mfccStd = 25.030596;
+  const float mfccMean = -5.2690635;
+  const float mfccStd = 15.966296;
 
   int64_t total_elapsed_us1 = 0;
   int64_t total_elapsed_us2 = 0;
@@ -515,9 +516,14 @@ void loop() {
   if (
     ( classIsPositive(pluralityVoteMinusFiveLast) != lastVotePostitive ||
     lastVotePostitive == 2 ) &&
-    classIsPositive(pluralityVoteMinusFiveLast) != classIsPositive(pluralityVoteLastFive)
+    classIsPositive(pluralityVoteMinusFiveLast) != classIsPositive(pluralityVoteLastFive) &&
+    minVotesBeforeClassify == 0
   ) {
     finalizeClassification(pluralityVoteMinusFiveLast, pluralityVoteLastFive);
+  } else {
+    if (minVotesBeforeClassify > 0) {
+      minVotesBeforeClassify--;
+    }
   }
 
   absolute_time_t end5 = get_absolute_time();

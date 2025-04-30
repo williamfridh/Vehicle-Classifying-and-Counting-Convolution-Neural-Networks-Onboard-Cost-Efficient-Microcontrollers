@@ -136,21 +136,17 @@ std::vector<float> reverseAudio(const std::vector<float>& audio) {
  * @param audio: Audio data
  * @return: Augmented audio data
  */
-std::vector<float> augmentAudio(const std::vector<float>& audio) {
+std::vector<float> augmentAudio(const std::vector<float>& audio, bool augReverse) {
     std::vector<float> augmentedAudio = audio;
 
-    // Randomly apply noise
-    if (rand() % 2 == 0) {
-        augmentedAudio = addNoise(augmentedAudio);
-    }
+    // Randomly apply noise'
+    augmentedAudio = addNoise(augmentedAudio);
 
     // Randomly apply gain
-    if (rand() % 2 == 0) {
-        augmentedAudio = applyRandomGain(augmentedAudio);
-    }
+    augmentedAudio = applyRandomGain(augmentedAudio);
 
     // Randomly reverse audio
-    if (rand() % 2 == 0) {
+    if (augReverse) {
         augmentedAudio = reverseAudio(augmentedAudio);
     }
 
@@ -223,22 +219,18 @@ std::vector<std::vector<float>> generateFrames(const std::vector<float>& audio, 
     for (size_t i = 0; i + frameLength <= audio.size(); i += (frameLength - overlapLength)) {
         // Extract frame from signal    
         std::vector<float> frame(audio.begin() + i, audio.begin() + i + frameLength);
+        std::vector<float> frameRev = frame;
         // Make 4 copies of each frame and apply audio augmentation to each
-        std::vector<float> frameCopy1 = frame;
-        std::vector<float> frameCopy2 = frame;
-        std::vector<float> frameCopy3 = frame;
-        std::vector<float> frameCopy4 = frame;
-        // Apply audio augmentation to each copy
-        frameCopy1 = augmentAudio(frameCopy1);
-        frameCopy2 = augmentAudio(frameCopy2);
-        frameCopy3 = augmentAudio(frameCopy3);
-        frameCopy4 = augmentAudio(frameCopy4);
-        //// Add the augmented frames to the vector
+        for (int j = 0; j < 4; j++) {
+            std::vector<float> frameCopy = frame;
+            std::vector<float> frameRevCopy = frame;
+            frameCopy = augmentAudio(frameCopy, false);
+            frameRevCopy = augmentAudio(frameRevCopy, true);
+            frames.push_back(frameCopy);
+            frames.push_back(frameRevCopy);
+        }
         frames.push_back(frame);
-        frames.push_back(frameCopy1);
-        frames.push_back(frameCopy2);
-        frames.push_back(frameCopy3);
-        frames.push_back(frameCopy4);
+        frames.push_back(frameRev);
     }
 
     return frames;
