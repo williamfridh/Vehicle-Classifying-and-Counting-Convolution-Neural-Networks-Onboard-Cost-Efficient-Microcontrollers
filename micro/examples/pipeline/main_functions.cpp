@@ -52,7 +52,7 @@ namespace {
 
   std::vector<std::vector<int>> lastXSoftVotes;         // ? B
   int8_t lastXSoftVotesIndex = 0;                       // 1 B
-  int8_t lastXVoteAmount = 5;                           // 1 B
+  int8_t lastXVoteAmount = 4;                           // 1 B
   int8_t minVotesBeforeClassify = 5;                     // 1 B
 
   uint8_t lastVotePostitive = 2;                        // 1 B
